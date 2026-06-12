@@ -1,9 +1,11 @@
-﻿from enum import StrEnum
+from enum import Enum
+
 from pydantic import BaseModel
+
 from app.core.settings import settings
 
 
-class LLMProvider(StrEnum):
+class LLMProvider(str, Enum):
     OPENAI = "openai"
     FEATHERLESS = "featherless"
     AIMLAPI = "aimlapi"

@@ -1,4 +1,8 @@
-﻿from pydantic_settings import BaseSettings
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    # FastAPI 0.94 uses Pydantic v1, where BaseSettings lives in pydantic.
+    from pydantic import BaseSettings
 
 
 class Settings(BaseSettings):
