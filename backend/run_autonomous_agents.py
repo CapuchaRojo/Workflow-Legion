@@ -78,6 +78,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Print safe live receive diagnostics without exposing credentials.",
     )
     parser.add_argument(
+        "--include-seen-debug",
+        action="store_true",
+        help="When debug receive is enabled, include already-seen messages.",
+    )
+    parser.add_argument(
         "--dump-recent-messages",
         action="store_true",
         help=(
@@ -107,7 +112,10 @@ async def main(argv: Sequence[str] | None = None) -> int:
         single_pass=args.single_pass,
         message_limit=args.message_limit,
     )
-    runtime.enable_receive_debug(args.debug_receive)
+    runtime.enable_receive_debug(
+        args.debug_receive,
+        include_seen_debug=args.include_seen_debug,
+    )
 
     if args.debug_receive:
         runtime.print_startup_receive_diagnostics()

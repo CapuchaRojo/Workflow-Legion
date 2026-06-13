@@ -130,6 +130,7 @@ Useful live safety flags:
 --stop-after-complete
 --once
 --debug-receive
+--include-seen-debug
 --dump-recent-messages
 --message-limit 5
 ```
@@ -147,14 +148,41 @@ the current run completes.
 `--once` / `--single-pass` processes currently available live Band messages once,
 then exits. This is useful for safe diagnostics before a full live loop.
 
+`--debug-receive` prints safe receive diagnostics. By default it summarizes the
+raw batch but only expands new/unseen messages. Add `--include-seen-debug` when
+you need per-message detail for old messages too.
+
 Read-only receive diagnostic:
 
 ```powershell
-backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --once --dump-recent-messages --debug-receive
+backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --once --dump-recent-messages --debug-receive --run-id diag-001 --message-limit 10
 ```
 
 Dump mode fetches one recent message batch, prints safe summaries, and exits
 without posting agent replies.
+
+If Triage posts but Threat Intel and Forensics do not wake, run live with a
+higher receive limit:
+
+```powershell
+backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --run-id live-debug --poll-interval 3 --max-turns 8 --message-limit 25 --debug-receive
+```
+
+Downstream automation requires receive visibility of agent-authored posts. If
+debug output says `No agent-authored messages visible in receive batch` or
+`Latest batch contains only human-authored messages`, the runtime is receiving
+Band messages but the current receive key or endpoint is not showing the agent
+posts needed to wake downstream roles.
+
+Band receive may render a visible mention as an internal token such as:
+
+```text
+@[[<band-internal-agent-id>]]
+```
+
+Live receive matching supports those tokens through local `.env` role mappings.
+Set each `BAND_*_AGENT_ID` value locally from the Band agent profile or message
+diagnostics. These IDs stay local only and must never be committed.
 
 Then post exactly one Band room message:
 
@@ -167,14 +195,19 @@ Live mode requires:
 ```text
 BAND_BASE_URL
 BAND_CHAT_ID
+BAND_TRIAGE_AGENT_ID
 BAND_TRIAGE_HANDLE
 BAND_TRIAGE_AGENT_API_KEY
+BAND_THREAT_INTEL_AGENT_ID
 BAND_THREAT_INTEL_HANDLE
 BAND_THREAT_INTEL_AGENT_API_KEY
+BAND_FORENSICS_AGENT_ID
 BAND_FORENSICS_HANDLE
 BAND_FORENSICS_AGENT_API_KEY
+BAND_COMPLIANCE_AGENT_ID
 BAND_COMPLIANCE_HANDLE
 BAND_COMPLIANCE_AGENT_API_KEY
+BAND_COMMANDER_AGENT_ID
 BAND_COMMANDER_HANDLE
 BAND_COMMANDER_AGENT_API_KEY
 ```

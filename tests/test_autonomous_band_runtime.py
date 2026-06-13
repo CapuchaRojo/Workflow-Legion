@@ -88,6 +88,37 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self.assertIsNotNone(runtime.state)
         self.assertEqual(runtime.state.completed_roles, ["triage"])
 
+    def test_band_internal_mention_token_starts_triage_with_configured_agent_id(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        settings_obj.band_triage_agent_id = "fake-triage-agent-id"
+        runtime = self._runtime_with_empty_source(settings_obj=settings_obj)
+        event = BandMessageEvent(
+            message_id="m-internal-token-start",
+            content="@[[fake-triage-agent-id]] AUTO:START WL-INC-001",
+            author_handle="human",
+        )
+
+        asyncio.run(runtime.handle_event(event))
+
+        self.assertIsNotNone(runtime.state)
+        self.assertEqual(runtime.state.completed_roles, ["triage"])
+
+    def test_structured_mention_id_matches_configured_agent_id(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        settings_obj.band_triage_agent_id = "fake-triage-agent-id"
+        runtime = self._runtime_with_empty_source(settings_obj=settings_obj)
+        event = BandMessageEvent(
+            message_id="m-structured-id-start",
+            content="AUTO:START WL-INC-001",
+            author_handle="human",
+            mention_metadata=({"id": "fake-triage-agent-id"},),
+        )
+
+        asyncio.run(runtime.handle_event(event))
+
+        self.assertIsNotNone(runtime.state)
+        self.assertEqual(runtime.state.completed_roles, ["triage"])
+
     def test_raw_handle_mention_matching_still_works(self) -> None:
         runtime = self._runtime_with_empty_source()
         triage_handle = runtime.registry["triage"].handle
@@ -122,6 +153,38 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self.assertEqual(marker["role"], "triage")
         self.assertIn(registry["threat_intel"].handle, triage_message.mention_handles)
         self.assertIn(registry["forensics"].handle, triage_message.mention_handles)
+
+    def test_downstream_agents_react_to_agent_authored_upstream_message(self) -> None:
+        runtime = self._runtime_with_empty_source(
+            state=AutonomousRunState(
+                incident_id="WL-INC-001",
+                run_id="unit",
+                status="running",
+                completed_roles=["triage"],
+            )
+        )
+        registry = runtime.registry
+        event = BandMessageEvent(
+            message_id="m-triage-output",
+            content=(
+                f"@{registry['threat_intel'].handle} "
+                f"@{registry['forensics'].handle} "
+                "[WL-AUTO:WL-INC-001:triage:unit] Triage complete."
+            ),
+            author_handle=registry["triage"].handle,
+            mention_handles=(
+                registry["threat_intel"].handle,
+                registry["forensics"].handle,
+            ),
+        )
+
+        asyncio.run(runtime.handle_event(event))
+
+        self.assertIn("threat_intel", runtime.state.completed_roles)
+        self.assertIn("forensics", runtime.state.completed_roles)
+        messenger = runtime.messenger
+        self.assertIsInstance(messenger, DryRunBandMessenger)
+        self.assertEqual(len(messenger.sent_messages), 2)
 
     def test_loop_prevention_ignores_own_authored_start_message(self) -> None:
         runtime = self._runtime_with_empty_source()
@@ -242,6 +305,81 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self.assertIsNone(runtime.state)
         self.assertIn("matched_roles=triage", output.getvalue())
 
+    def test_debug_receive_counts_band_internal_mentions_without_configured_ids(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        settings_obj.band_triage_agent_id = "fake-triage-agent-id"
+        runtime = self._runtime_with_empty_source(settings_obj=settings_obj)
+        event = BandMessageEvent(
+            message_id="m-debug-internal-token",
+            content="@[[fake-triage-agent-id]] AUTO:START WL-INC-001",
+            author_handle="human",
+        )
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            runtime.print_receive_diagnostics([event])
+
+        diagnostics = output.getvalue()
+        self.assertIn("band_internal_mentions_detected=1", diagnostics)
+        self.assertIn("matched_any_role=True matched_roles=triage", diagnostics)
+
+    def test_debug_receive_distinguishes_new_and_seen_messages(self) -> None:
+        runtime = self._runtime_with_empty_source()
+        source = LiveBandEventSource(
+            base_url="https://band.example/api",
+            chat_id="chat",
+            agent_api_key="key",
+        )
+        source._seen_message_ids.add("m-seen")
+        batch = source.build_receive_batch(
+            [
+                BandMessageEvent(
+                    message_id="m-seen",
+                    content="AUTO:START WL-INC-001",
+                    author_handle="human",
+                ),
+                BandMessageEvent(
+                    message_id="m-new",
+                    content="@unknown AUTO:START WL-INC-001",
+                    author_handle="human",
+                ),
+            ]
+        )
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            runtime.print_receive_diagnostics(batch)
+
+        diagnostics = output.getvalue()
+        self.assertIn("batch_seen_order=m-seen:seen, m-new:new", diagnostics)
+        self.assertIn("seen_messages_suppressed=1", diagnostics)
+        self.assertIn("message_id=m-new seen_status=new", diagnostics)
+        self.assertNotIn("message_id=m-seen seen_status=seen", diagnostics)
+
+    def test_debug_receive_reports_human_only_batch(self) -> None:
+        runtime = self._runtime_with_empty_source()
+        output = io.StringIO()
+        with redirect_stdout(output):
+            runtime.print_receive_diagnostics(
+                [
+                    BandMessageEvent(
+                        message_id="m-human-only",
+                        content="AUTO:START WL-INC-001",
+                        author_handle="human",
+                    )
+                ]
+            )
+
+        diagnostics = output.getvalue()
+        self.assertIn(
+            "No agent-authored messages visible in receive batch",
+            diagnostics,
+        )
+        self.assertIn(
+            "Latest batch contains only human-authored messages",
+            diagnostics,
+        )
+
     def test_dry_run_autonomous_chain_completes(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             runtime = build_runtime_from_settings(
@@ -316,9 +454,10 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
                 "--no-stop-after-complete",
                 "--once",
                 "--debug-receive",
+                "--include-seen-debug",
                 "--dump-recent-messages",
                 "--message-limit",
-                "9",
+                "25",
             ]
         )
 
@@ -327,8 +466,9 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self.assertFalse(args.stop_after_complete)
         self.assertTrue(args.single_pass)
         self.assertTrue(args.debug_receive)
+        self.assertTrue(args.include_seen_debug)
         self.assertTrue(args.dump_recent_messages)
-        self.assertEqual(args.message_limit, 9)
+        self.assertEqual(args.message_limit, 25)
 
     def test_live_runtime_receives_poll_interval_and_single_pass(self) -> None:
         settings_obj = self._settings_without_provider_keys()
@@ -339,7 +479,7 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             dry_run=False,
             poll_interval_seconds=6.0,
             single_pass=True,
-            message_limit=9,
+            message_limit=25,
             settings_obj=settings_obj,
         )
 
@@ -347,7 +487,38 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         assert isinstance(runtime.event_source, LiveBandEventSource)
         self.assertEqual(runtime.event_source.poll_interval_seconds, 6.0)
         self.assertTrue(runtime.event_source.single_pass)
-        self.assertEqual(runtime.event_source.message_limit, 9)
+        self.assertEqual(runtime.event_source.message_limit, 25)
+
+    def test_live_event_source_does_not_yield_old_start_message_repeatedly(self) -> None:
+        old_start = BandMessageEvent(
+            message_id="m-old-start",
+            content="@triage AUTO:START WL-INC-001",
+            author_handle="human",
+        )
+        new_agent_message = BandMessageEvent(
+            message_id="m-new-triage",
+            content="[WL-AUTO:WL-INC-001:triage:unit] @threat @forensics",
+            author_handle="triage",
+        )
+        source = _PollingSequenceLiveBandEventSource(
+            [
+                [old_start],
+                [old_start, new_agent_message],
+            ]
+        )
+
+        async def collect_two_message_ids():
+            message_ids = []
+            async for event in source.events():
+                message_ids.append(event.message_id)
+                if len(message_ids) == 2:
+                    break
+            return message_ids
+
+        self.assertEqual(
+            asyncio.run(collect_two_message_ids()),
+            ["m-old-start", "m-new-triage"],
+        )
 
     def test_cancelled_cli_path_exits_cleanly(self) -> None:
         async def cancelled_main(argv=None):
@@ -393,8 +564,9 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
     def _runtime_with_empty_source(
         self,
         state: AutonomousRunState | None = None,
+        settings_obj: Settings | None = None,
     ) -> AutonomousBandRuntime:
-        settings_obj = self._settings_without_provider_keys()
+        settings_obj = settings_obj or self._settings_without_provider_keys()
         registry = build_band_remote_agent_registry(settings_obj)
         source = ScriptedBandEventSource()
         messenger = DryRunBandMessenger(registry)
@@ -417,6 +589,11 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             band_agent_id=None,
             band_chat_id=None,
             band_room_id=None,
+            band_triage_agent_id=None,
+            band_threat_intel_agent_id=None,
+            band_forensics_agent_id=None,
+            band_compliance_agent_id=None,
+            band_commander_agent_id=None,
             band_triage_agent_api_key=None,
             band_threat_intel_agent_api_key=None,
             band_forensics_agent_api_key=None,
@@ -459,6 +636,23 @@ class _SentinelAfterCommanderSource(ScriptedBandEventSource):
                     author_handle="human",
                 )
             )
+
+
+class _PollingSequenceLiveBandEventSource(LiveBandEventSource):
+    def __init__(self, batches: list[list[BandMessageEvent]]) -> None:
+        super().__init__(
+            base_url="https://band.example/api",
+            chat_id="chat",
+            agent_api_key="key",
+            poll_interval_seconds=0,
+            single_pass=False,
+        )
+        self._batches = list(batches)
+
+    async def poll_once(self) -> list[BandMessageEvent]:
+        if not self._batches:
+            return []
+        return self._batches.pop(0)
 
 
 if __name__ == "__main__":

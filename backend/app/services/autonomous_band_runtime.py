@@ -42,7 +42,11 @@ AUTO_START_PATTERN = re.compile(r"\bAUTO:START\s+([A-Za-z0-9_.-]+)\b", re.IGNORE
 RUN_MARKER_PATTERN = re.compile(
     r"\[WL-AUTO:(?P<incident>[A-Za-z0-9_.-]+):(?P<role>[a-z_]+):(?P<run>[A-Za-z0-9_.-]+)\]"
 )
+BAND_INTERNAL_MENTION_PATTERN = re.compile(r"@\[\[([^\]\r\n]+)\]\]")
 MENTION_METADATA_FIELDS = (
+    "id",
+    "agent_id",
+    "agentId",
     "handle",
     "name",
     "display_name",
@@ -68,6 +72,7 @@ class BandMessageEvent:
     content: str
     author_handle: str | None = None
     author_display: str | None = None
+    author_id: str | None = None
     created_at: str | None = None
     mention_handles: tuple[str, ...] = ()
     mention_metadata: tuple[dict[str, str], ...] = ()
@@ -78,6 +83,7 @@ class BandMessageEvent:
     def normalized_mentions(self) -> tuple[str, ...]:
         handles = list(self.mention_handles)
         handles.extend(extract_mention_handles(self.content))
+        handles.extend(_extract_band_internal_mentions(self.content))
         for mention in self.mention_metadata:
             for field_name in MENTION_METADATA_FIELDS:
                 value = mention.get(field_name)
@@ -93,6 +99,30 @@ class SentBandMessage:
     content: str
     mention_handles: tuple[str, ...]
     delivery: BandDeliveryResult
+
+
+@dataclass(frozen=True)
+class ReceiveBatchItem:
+    event: BandMessageEvent
+    seen_before: bool
+
+
+@dataclass(frozen=True)
+class ReceiveBatch:
+    items: tuple[ReceiveBatchItem, ...]
+    order_strategy: str
+
+    @property
+    def events(self) -> tuple[BandMessageEvent, ...]:
+        return tuple(item.event for item in self.items)
+
+    @property
+    def new_items(self) -> tuple[ReceiveBatchItem, ...]:
+        return tuple(item for item in self.items if not item.seen_before)
+
+    @property
+    def seen_count(self) -> int:
+        return len(self.items) - len(self.new_items)
 
 
 class BandEventSource(Protocol):
@@ -163,18 +193,20 @@ class LiveBandEventSource:
         self.poll_interval_seconds = poll_interval_seconds
         self.single_pass = single_pass
         self.message_limit = max(1, message_limit)
-        self.debug_callback: Callable[[list[BandMessageEvent]], None] | None = None
+        self.debug_callback: Callable[[ReceiveBatch], None] | None = None
         self._seen_message_ids: set[str] = set()
 
     async def events(self) -> AsyncIterator[BandMessageEvent]:
         while True:
             polled_events = await self.poll_once()
+            batch = self.build_receive_batch(polled_events)
             if self.debug_callback:
-                self.debug_callback(polled_events)
+                self.debug_callback(batch)
 
-            for event in polled_events:
-                if event.message_id in self._seen_message_ids:
+            for item in batch.items:
+                if item.seen_before:
                     continue
+                event = item.event
                 self._seen_message_ids.add(event.message_id)
                 yield event
 
@@ -196,16 +228,39 @@ class LiveBandEventSource:
             response = await client.get(
                 f"{self.base_url}/agent/chats/{self.chat_id}/messages",
                 headers=headers,
-                params={"limit": self.message_limit},
+                params={"limit": self.message_limit, "order": "desc"},
             )
+            if response.status_code in (400, 422):
+                response = await client.get(
+                    f"{self.base_url}/agent/chats/{self.chat_id}/messages",
+                    headers=headers,
+                    params={"limit": self.message_limit},
+                )
 
         response.raise_for_status()
         payload = response.json()
         messages = _extract_message_list(payload)
-        return [_event_from_band_payload(message, self.chat_id) for message in messages]
+        events = [_event_from_band_payload(message, self.chat_id) for message in messages]
+        return _order_events_for_processing(events)
 
     async def _poll_once(self) -> list[BandMessageEvent]:
         return await self.poll_once()
+
+    def build_receive_batch(self, events: list[BandMessageEvent]) -> ReceiveBatch:
+        batch_seen: set[str] = set()
+        items: list[ReceiveBatchItem] = []
+        for event in events:
+            seen_before = (
+                event.message_id in self._seen_message_ids
+                or event.message_id in batch_seen
+            )
+            items.append(ReceiveBatchItem(event=event, seen_before=seen_before))
+            batch_seen.add(event.message_id)
+
+        return ReceiveBatch(
+            items=tuple(items),
+            order_strategy=_event_order_strategy(events),
+        )
 
 
 class DryRunBandMessenger:
@@ -307,9 +362,15 @@ class AutonomousBandRuntime:
         self.stop_after_complete = stop_after_complete
         self.settings = settings_obj
         self.debug_receive = False
+        self.include_seen_debug = False
 
-    def enable_receive_debug(self, enabled: bool = True) -> None:
+    def enable_receive_debug(
+        self,
+        enabled: bool = True,
+        include_seen_debug: bool = False,
+    ) -> None:
         self.debug_receive = enabled
+        self.include_seen_debug = include_seen_debug
         if isinstance(self.event_source, LiveBandEventSource):
             self.event_source.debug_callback = (
                 self.print_receive_diagnostics if enabled else None
@@ -330,18 +391,95 @@ class AutonomousBandRuntime:
             f"active_event_source={type(self.event_source).__name__} "
             f"poll_interval={poll_interval if poll_interval is not None else 'n/a'} "
             f"message_limit={message_limit if message_limit is not None else 'n/a'} "
+            f"include_seen_debug={self.include_seen_debug} "
             f"run_id={self.run_id or 'pending'}"
         )
 
-    def print_receive_diagnostics(self, events: list[BandMessageEvent]) -> None:
-        print(f"[debug-receive] received_message_count={len(events)}")
-        for event in events:
+    def print_receive_diagnostics(
+        self,
+        batch_or_events: ReceiveBatch | list[BandMessageEvent],
+    ) -> None:
+        batch = _coerce_receive_batch(batch_or_events)
+        print(
+            "[debug-receive] "
+            f"received_message_count={len(batch.items)} "
+            f"new_message_count={len(batch.new_items)} "
+            f"seen_message_count={batch.seen_count} "
+            f"batch_order_strategy={batch.order_strategy}"
+        )
+        show_batch_details = bool(batch.new_items) or self.include_seen_debug
+        if batch.items and show_batch_details:
+            print(
+                "[debug-receive] "
+                "batch_message_ids="
+                + ", ".join(item.event.message_id for item in batch.items)
+            )
+            print(
+                "[debug-receive] "
+                "batch_seen_order="
+                + ", ".join(
+                    f"{item.event.message_id}:"
+                    f"{'seen' if item.seen_before else 'new'}"
+                    for item in batch.items
+                )
+            )
+            print(
+                "[debug-receive] "
+                "batch_author_order="
+                + " | ".join(
+                    f"{item.event.message_id}:"
+                    f"{self._author_kind(item.event)}:"
+                    f"{_safe_author_summary(item.event)}"
+                    for item in batch.items
+                )
+            )
+            agent_authored_count = sum(
+                1
+                for item in batch.items
+                if self._author_kind(item.event).startswith("agent:")
+            )
+            known_human_count = sum(
+                1
+                for item in batch.items
+                if self._author_kind(item.event) == "human_or_external"
+            )
+            if agent_authored_count == 0:
+                print(
+                    "[debug-receive] "
+                    "diagnostic=No agent-authored messages visible in receive batch"
+                )
+                if known_human_count == len(batch.items):
+                    print(
+                        "[debug-receive] "
+                        "diagnostic=Latest batch contains only human-authored messages"
+                    )
+        elif batch.items:
+            print(
+                "[debug-receive] "
+                f"all_seen_batch_suppressed={len(batch.items)} "
+                "use --include-seen-debug to print raw batch ordering"
+            )
+
+        if batch.seen_count and not self.include_seen_debug:
+            print(
+                "[debug-receive] "
+                f"seen_messages_suppressed={batch.seen_count} "
+                "use --include-seen-debug to print them"
+            )
+
+        visible_items = (
+            batch.items if self.include_seen_debug else batch.new_items
+        )
+        for item in visible_items:
+            event = item.event
             diagnosis = self.diagnose_event_match(event)
             author = _safe_author_summary(event)
             mentions = _safe_mention_metadata_summary(event)
             print(
                 "[debug-receive] "
                 f"message_id={event.message_id} "
+                f"seen_status={'seen' if item.seen_before else 'new'} "
+                f"author_kind={self._author_kind(event)} "
                 f"author={author} "
                 f"created_at={event.created_at or 'unknown'}"
             )
@@ -349,6 +487,12 @@ class AutonomousBandRuntime:
                 "[debug-receive] "
                 f"content_preview={_preview_text(event.content, 180)!r}"
             )
+            internal_mention_count = len(_extract_band_internal_mentions(event.content))
+            if internal_mention_count:
+                print(
+                    "[debug-receive] "
+                    f"band_internal_mentions_detected={internal_mention_count}"
+                )
             if mentions:
                 print(f"[debug-receive] mention_metadata={mentions}")
             if diagnosis["matched"]:
@@ -416,6 +560,14 @@ class AutonomousBandRuntime:
             "roles": [],
             "reason": "no recognized role mention",
         }
+
+    def _author_kind(self, event: BandMessageEvent) -> str:
+        for role in ROLE_DEFINITIONS:
+            if self._authored_by_role(event, role):
+                return f"agent:{role}"
+        if event.author_handle or event.author_display or event.author_id:
+            return "human_or_external"
+        return "unknown"
 
     async def run_until_complete(self) -> AutonomousRunState:
         async for event in self.event_source.events():
@@ -498,6 +650,7 @@ class AutonomousBandRuntime:
         aliases = [
             agent.handle,
             f"@{agent.handle}",
+            agent.agent_id or "",
             agent.display_name,
             f"@{agent.display_name}",
             definition.display_name,
@@ -533,7 +686,7 @@ class AutonomousBandRuntime:
 
     def _authored_by_role(self, event: BandMessageEvent, role: str) -> bool:
         aliases = set(self._role_mention_aliases(role))
-        author_values = [event.author_handle, event.author_display]
+        author_values = [event.author_handle, event.author_display, event.author_id]
         return any(
             _normalize_mention_candidate(value) in aliases
             for value in author_values
@@ -775,6 +928,32 @@ def _event_from_band_payload(
         or _nested_first_value(payload, "sender", "name", "display_name", "displayName")
         or _nested_first_value(payload, "agent", "name", "display_name", "displayName")
     )
+    author_id = (
+        _first_value(
+            message,
+            "author_id",
+            "authorId",
+            "sender_id",
+            "senderId",
+            "agent_id",
+            "agentId",
+        )
+        or _nested_first_value(message, "author", "id", "agent_id", "agentId")
+        or _nested_first_value(message, "sender", "id", "agent_id", "agentId")
+        or _nested_first_value(message, "agent", "id", "agent_id", "agentId")
+        or _first_value(
+            payload,
+            "author_id",
+            "authorId",
+            "sender_id",
+            "senderId",
+            "agent_id",
+            "agentId",
+        )
+        or _nested_first_value(payload, "author", "id", "agent_id", "agentId")
+        or _nested_first_value(payload, "sender", "id", "agent_id", "agentId")
+        or _nested_first_value(payload, "agent", "id", "agent_id", "agentId")
+    )
     created_at = (
         _first_value(message, "created_at", "createdAt", "timestamp", "time")
         or _first_value(payload, "created_at", "createdAt", "timestamp", "time")
@@ -789,6 +968,7 @@ def _event_from_band_payload(
         content=content,
         author_handle=str(author) if author else None,
         author_display=str(author_display) if author_display else None,
+        author_id=str(author_id) if author_id else None,
         created_at=str(created_at) if created_at else None,
         mention_handles=tuple(mention_handles),
         mention_metadata=mention_metadata,
@@ -822,6 +1002,9 @@ def _extract_mention_metadata(
             if not isinstance(nested, dict):
                 continue
             for source_key, target_key in (
+                ("id", "id"),
+                ("agent_id", "agent_id"),
+                ("agentId", "agentId"),
                 ("handle", "handle"),
                 ("name", "name"),
                 ("display_name", "display_name"),
@@ -876,7 +1059,51 @@ def _normalize_mention_candidates(values: list[str] | tuple[str, ...]) -> list[s
 
 def _normalize_mention_candidate(value: str) -> str:
     clean = str(value).strip().removeprefix("@").strip().lower()
+    if clean.startswith("[[") and clean.endswith("]]"):
+        clean = clean[2:-2].strip()
     return re.sub(r"\s+", " ", clean)
+
+
+def _coerce_receive_batch(
+    batch_or_events: ReceiveBatch | list[BandMessageEvent],
+) -> ReceiveBatch:
+    if isinstance(batch_or_events, ReceiveBatch):
+        return batch_or_events
+
+    events = _order_events_for_processing(batch_or_events)
+    return ReceiveBatch(
+        items=tuple(
+            ReceiveBatchItem(event=event, seen_before=False)
+            for event in events
+        ),
+        order_strategy=_event_order_strategy(events),
+    )
+
+
+def _order_events_for_processing(
+    events: list[BandMessageEvent],
+) -> list[BandMessageEvent]:
+    if _can_sort_by_created_at(events):
+        return sorted(events, key=lambda event: event.created_at or "")
+    return list(events)
+
+
+def _event_order_strategy(events: list[BandMessageEvent]) -> str:
+    if not events:
+        return "empty"
+    if _can_sort_by_created_at(events):
+        return "created_at_ascending"
+    return "response_order"
+
+
+def _can_sort_by_created_at(events: list[BandMessageEvent]) -> bool:
+    return bool(events) and all(event.created_at for event in events)
+
+
+def _extract_band_internal_mentions(content: str) -> list[str]:
+    return _normalize_mention_candidates(
+        BAND_INTERNAL_MENTION_PATTERN.findall(content)
+    )
 
 
 def _content_has_visible_role_mention(content: str, aliases: set[str]) -> bool:
