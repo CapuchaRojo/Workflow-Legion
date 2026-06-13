@@ -4,6 +4,7 @@ import { DemoFlow } from "./components/DemoFlow";
 import { FinalCta } from "./components/FinalCta";
 import { Footer } from "./components/Footer";
 import { Hero } from "./components/Hero";
+import { MissionControl } from "./components/MissionControl";
 import { Navbar } from "./components/Navbar";
 import { ProblemSolution } from "./components/ProblemSolution";
 import { ShowcaseNote } from "./components/ShowcaseNote";
@@ -16,6 +17,7 @@ export default function App() {
       <Navbar />
       <main>
         <Hero />
+        <MissionControl />
         <ProblemSolution />
         <AgentTeam />
         <DemoFlow />

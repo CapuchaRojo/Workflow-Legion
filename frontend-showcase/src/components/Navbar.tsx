@@ -1,4 +1,5 @@
 const navItems = [
+  { href: "#mission-control", label: "Mission" },
   { href: "#problem", label: "Problem" },
   { href: "#agents", label: "Agents" },
   { href: "#flow", label: "Demo Flow" },

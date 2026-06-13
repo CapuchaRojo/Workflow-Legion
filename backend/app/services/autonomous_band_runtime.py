@@ -739,6 +739,11 @@ class AutonomousBandRuntime:
         definition = ROLE_DEFINITIONS[role]
         output = await self.reasoning_provider.decide(definition, context)
         sent_message = await self.messenger.send_role_output(role, output)
+        self.state.record_delivery(
+            role=role,
+            delivered=sent_message.delivery.delivered,
+            status_code=sent_message.delivery.status_code,
+        )
         if not sent_message.delivery.delivered:
             self.state_store.save(self.state)
             return
@@ -841,6 +846,7 @@ def build_runtime_from_settings(
     dry_run: bool = False,
     incident_id: str = "WL-INC-001",
     state_dir: str = ".workflow-legion-state",
+    frontend_studio_export: str | None = None,
     max_turns: int = 12,
     poll_interval_seconds: float = 5.0,
     run_id: str | None = None,
@@ -850,7 +856,10 @@ def build_runtime_from_settings(
     settings_obj: Settings = settings,
 ) -> AutonomousBandRuntime:
     registry = build_band_remote_agent_registry(settings_obj)
-    state_store = AutonomousStateStore(state_dir)
+    state_store = AutonomousStateStore(
+        state_dir,
+        frontend_export_path=frontend_studio_export,
+    )
     resolved_run_id = run_id or uuid4().hex[:8]
     provider_mode = "deterministic" if dry_run else getattr(
         settings_obj,

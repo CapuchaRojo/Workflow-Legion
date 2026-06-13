@@ -10,25 +10,25 @@ const agents = [
   {
     name: "Threat Intel Agent",
     role: "Enriches indicators, maps suspected tooling, and raises context for malicious activity.",
-    state: "Expansion path",
+    state: "Validated remote proof",
     tone: "info",
   },
   {
     name: "Forensics Agent",
     role: "Builds the host timeline, highlights evidence gaps, and preserves investigation notes.",
-    state: "Expansion path",
+    state: "Validated remote proof",
     tone: "info",
   },
   {
     name: "Compliance Agent",
     role: "Checks audit, escalation, regulated workflow, and reporting implications.",
-    state: "Expansion path",
+    state: "Validated remote proof",
     tone: "warning",
   },
   {
     name: "Incident Commander Agent",
     role: "Turns shared agent context into a containment recommendation and final decision.",
-    state: "Expansion path",
+    state: "Validated remote proof",
     tone: "danger",
   },
 ];
@@ -40,7 +40,7 @@ export function AgentTeam() {
         <SectionHeader
           eyebrow="Agent team"
           title="Five roles, one visible incident room"
-          body="Workflow Legion models a complete command chain while staying honest about the current validated proof: the remote Triage Agent has posted into Band, and the full five-agent remote room is the next expansion."
+          body="Workflow Legion shows a complete command chain while staying honest about the current validated proof: one human Band start prompt can drive the five-role runtime, and each role posts visibly through its own remote Band identity."
         />
         <div className="agent-grid">
           {agents.map((agent) => (

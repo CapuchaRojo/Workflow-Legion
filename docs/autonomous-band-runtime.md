@@ -98,7 +98,7 @@ after Commander.
 
 From the repository root:
 
-```powershell
+```cmd
 set PYTHONPATH=%CD%\backend
 backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --dry-run --incident WL-INC-001
 ```
@@ -121,11 +121,24 @@ That directory is ignored by Git. The latest Mission Control-friendly status is:
 .workflow-legion-state/mission-control-status.json
 ```
 
+For the frontend showcase, write a separate sanitized Mission Control export:
+
+```cmd
+backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --run-id studio-001 --poll-interval 3 --max-turns 8 --message-limit 25 --stop-after-complete --debug-receive --frontend-studio-export frontend-showcase\public\mission-control-status.json
+```
+
+That exported file is ignored by Git and contains only demo/runtime status:
+incident ID, run ID, chain status, role status, provider names, role summaries,
+handoff targets, Commander decision status, timestamps, and safe delivery
+status. It does not include API keys, Band receive keys, Band agent IDs, chat
+IDs, room IDs, sponsor codes, QR codes, redemption links, `.env` values, or
+local private paths.
+
 ## Live Mode
 
 From the repository root:
 
-```powershell
+```cmd
 set PYTHONPATH=%CD%\backend
 backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py
 ```
@@ -141,6 +154,7 @@ Useful live safety flags:
 --include-seen-debug
 --dump-recent-messages
 --message-limit 5
+--frontend-studio-export frontend-showcase\public\mission-control-status.json
 ```
 
 `--poll-interval` controls seconds between live Band receive polls. The default
@@ -162,7 +176,7 @@ you need per-message detail for old messages too.
 
 Read-only receive diagnostic:
 
-```powershell
+```cmd
 backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --once --dump-recent-messages --debug-receive --run-id diag-001 --message-limit 10
 ```
 
@@ -172,7 +186,7 @@ without posting agent replies.
 To verify whether Band receive is echoing agent-authored posts, run live with a
 higher receive limit:
 
-```powershell
+```cmd
 backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --run-id live-debug --poll-interval 3 --max-turns 8 --message-limit 25 --debug-receive
 ```
 

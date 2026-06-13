@@ -216,8 +216,7 @@ backend\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
 Expected result:
 
-Ran 16 tests
-OK
+All discovered tests pass with OK.
 Frontend showcase validation
 
 From the repository root:
@@ -273,6 +272,7 @@ frontend-showcase/
 Current showcase sections:
 
 Hero
+Mission Control
 Problem / Solution
 Agent Team
 Demo Flow
@@ -285,7 +285,7 @@ Footer
 
 Showcase principles:
 
-Fully static.
+Static-first, with optional sanitized local Mission Control JSON polling.
 No backend calls.
 No Supabase.
 No forms.
@@ -294,6 +294,31 @@ No API keys or credentials.
 No sponsor codes or QR links.
 Band remains the core collaboration layer.
 Native.Builder packages the story and presentation; it does not coordinate the agents.
+
+Live Mission Control View
+
+The frontend showcase can optionally display a sanitized local Mission Control export from the autonomous runtime.
+
+The backend still writes raw runtime state under:
+
+.workflow-legion-state\mission-control-status.json
+
+For the frontend showcase, use the safe export flag:
+
+```cmd
+backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --run-id studio-001 --poll-interval 3 --max-turns 8 --message-limit 25 --stop-after-complete --debug-receive --frontend-studio-export frontend-showcase\public\mission-control-status.json
+```
+
+Then run the frontend showcase:
+
+```cmd
+cd frontend-showcase
+npm run dev
+```
+
+The live export is ignored by git. The committed sample at frontend-showcase\public\mission-control-status.example.json uses fake demo values only. If frontend-showcase\public\mission-control-status.json is missing, the Mission Control section falls back to built-in demo data and keeps polling for the live export every 2.5 seconds.
+
+The export is intentionally sanitized. It contains incident/run status, role summaries, provider names, handoff targets, Commander decision status, timestamps, and safe delivery status. It does not include API keys, Band receive keys, Band agent IDs, chat IDs, room IDs, sponsor codes, QR codes, redemption links, .env values, or local private paths.
 
 Local showcase build note:
 

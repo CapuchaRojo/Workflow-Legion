@@ -461,6 +461,8 @@ p {
 
 .summary-card,
 .agent-card,
+.mission-agent-card,
+.mission-panel,
 .incident-brief,
 .flow-step,
 .endpoint-panel,
@@ -477,6 +479,8 @@ p {
 
 .summary-card,
 .agent-card,
+.mission-agent-card,
+.mission-panel,
 .incident-brief,
 .endpoint-panel,
 .sponsor-card,
@@ -490,6 +494,122 @@ p {
 
 .summary-card--success {
   border-color: rgba(51, 209, 122, 0.26);
+}
+
+.mission-control-section {
+  border-bottom: 1px solid rgba(151, 182, 217, 0.12);
+  background:
+    linear-gradient(180deg, rgba(0, 212, 255, 0.05), transparent 44%),
+    rgba(255, 255, 255, 0.012);
+}
+
+.mission-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.mission-summary,
+.mission-details,
+.mission-agent-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.mission-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mission-summary > div {
+  border-bottom: 1px solid rgba(151, 182, 217, 0.18);
+  padding-bottom: 14px;
+}
+
+.mission-summary h3 {
+  margin: 8px 0 0;
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.mission-details {
+  grid-template-columns: 1.4fr 0.8fr;
+}
+
+.mission-panel {
+  min-height: 138px;
+}
+
+.mission-panel--wide {
+  min-height: 150px;
+}
+
+.mission-panel p {
+  margin: 10px 0 0;
+}
+
+.mission-chain,
+.provider-labels {
+  color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.mission-current {
+  color: var(--blue);
+  font-weight: 800;
+}
+
+.mission-agent-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.mission-agent-card {
+  display: flex;
+  min-height: 310px;
+  flex-direction: column;
+}
+
+.mission-agent-card p {
+  margin-bottom: 16px;
+}
+
+.mission-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.mission-card-meta span,
+.mission-delivery,
+.mission-decision-status {
+  border: 1px solid rgba(0, 212, 255, 0.18);
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: #c8f5ff;
+  background: rgba(0, 212, 255, 0.06);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.mission-handoff {
+  margin-top: 16px;
+}
+
+.mission-handoff p {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+}
+
+.mission-delivery {
+  margin-top: 12px;
+}
+
+.mission-decision-status {
+  display: inline-flex;
+  margin-top: 16px;
+  color: var(--green);
 }
 
 .proof-strip {
@@ -805,11 +925,14 @@ p {
   .split-grid,
   .architecture-layout,
   .flow-layout,
+  .mission-details,
   .proof-strip {
     grid-template-columns: 1fr;
   }
 
   .agent-grid,
+  .mission-summary,
+  .mission-agent-grid,
   .sponsor-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -893,6 +1016,8 @@ p {
   }
 
   .agent-grid,
+  .mission-summary,
+  .mission-agent-grid,
   .sponsor-grid,
   .team-grid {
     grid-template-columns: 1fr;

@@ -25,3 +25,4 @@ Thumbs.db
 *.log
 commands.txt
 .workflow-legion-state/
+frontend-showcase/public/mission-control-status.json

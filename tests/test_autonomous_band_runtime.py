@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -460,6 +461,8 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
                 "--dump-recent-messages",
                 "--message-limit",
                 "25",
+                "--frontend-studio-export",
+                "frontend-showcase\\public\\mission-control-status.json",
             ]
         )
 
@@ -471,6 +474,10 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self.assertTrue(args.include_seen_debug)
         self.assertTrue(args.dump_recent_messages)
         self.assertEqual(args.message_limit, 25)
+        self.assertEqual(
+            args.frontend_studio_export,
+            "frontend-showcase\\public\\mission-control-status.json",
+        )
 
     def test_live_runtime_receives_poll_interval_and_single_pass(self) -> None:
         settings_obj = self._settings_without_provider_keys()
@@ -603,6 +610,77 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             ["triage", "threat_intel", "forensics", "compliance", "commander"],
         )
 
+    def test_frontend_studio_export_contains_only_sanitized_status(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        configured_agent_ids = [
+            "configured-triage-agent-id",
+            "configured-threat-agent-id",
+            "configured-forensics-agent-id",
+            "configured-compliance-agent-id",
+            "configured-commander-agent-id",
+        ]
+        (
+            settings_obj.band_triage_agent_id,
+            settings_obj.band_threat_intel_agent_id,
+            settings_obj.band_forensics_agent_id,
+            settings_obj.band_compliance_agent_id,
+            settings_obj.band_commander_agent_id,
+        ) = configured_agent_ids
+
+        with tempfile.TemporaryDirectory() as state_dir:
+            export_path = Path(state_dir) / "mission-control-status.json"
+            runtime = build_runtime_from_settings(
+                dry_run=True,
+                incident_id="WL-INC-001",
+                state_dir=state_dir,
+                frontend_studio_export=str(export_path),
+                run_id="studio-safe",
+                settings_obj=settings_obj,
+            )
+
+            asyncio.run(runtime.run_until_complete())
+
+            exported_text = export_path.read_text("utf-8")
+            exported = json.loads(exported_text)
+
+        self.assertEqual(exported["incident_id"], "WL-INC-001")
+        self.assertEqual(exported["run_id"], "studio-safe")
+        self.assertEqual(exported["chain_status"], "complete")
+        self.assertEqual(exported["final_commander_decision"]["status"], "complete")
+        self.assertEqual(len(exported["roles"]), 5)
+        self.assertNotIn("agent_id", exported_text.lower())
+        self.assertNotIn("api_key", exported_text.lower())
+        self.assertNotIn("chat_id", exported_text.lower())
+        self.assertNotIn("room_id", exported_text.lower())
+        for configured_agent_id in configured_agent_ids:
+            self.assertNotIn(configured_agent_id, exported_text)
+        for key in self._nested_keys(exported):
+            lowered = key.lower()
+            self.assertNotIn("key", lowered)
+            self.assertNotIn("agent_id", lowered)
+            self.assertNotIn("chat_id", lowered)
+            self.assertNotIn("room_id", lowered)
+
+    def test_failed_band_delivery_exports_failed_not_complete(self) -> None:
+        runtime, _messenger, start = self._delivery_sequence_runtime([False])
+
+        with tempfile.TemporaryDirectory() as state_dir:
+            export_path = Path(state_dir) / "mission-control-status.json"
+            runtime.state_store = AutonomousStateStore(
+                state_dir,
+                frontend_export_path=export_path,
+            )
+
+            asyncio.run(runtime.handle_event(start))
+
+            exported = json.loads(export_path.read_text("utf-8"))
+
+        triage = next(role for role in exported["roles"] if role["role"] == "triage")
+        self.assertEqual(triage["status"], "failed")
+        self.assertEqual(triage["delivery"]["status"], "failed")
+        self.assertFalse(triage["delivery"]["delivered"])
+        self.assertNotEqual(exported["chain_status"], "complete")
+
     def test_internal_event_ids_are_processed_once_per_role(self) -> None:
         runtime, _messenger, _source = self._live_internal_queue_runtime(
             run_id="internal-unit"
@@ -673,6 +751,15 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self.assertEqual(response.incident.status, "complete")
         self.assertEqual(len(response.incident.findings), 5)
         self.assertEqual(response.band_delivery, [])
+
+    def _nested_keys(self, value):
+        if isinstance(value, dict):
+            for key, child in value.items():
+                yield str(key)
+                yield from self._nested_keys(child)
+        elif isinstance(value, list):
+            for child in value:
+                yield from self._nested_keys(child)
 
     def _runtime_with_empty_source(
         self,

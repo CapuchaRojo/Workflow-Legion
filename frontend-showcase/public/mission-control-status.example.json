@@ -1,0 +1,125 @@
+{
+  "band_proof_note": "Band is the collaboration fabric and proof surface: agents coordinate through visible room messages, mentions, handoffs, shared context, and task state.",
+  "chain_status": "complete",
+  "created_at": "2026-06-13T00:00:00Z",
+  "current_chain": "Triage -> Threat Intel + Forensics -> Compliance -> Incident Commander -> stop",
+  "current_role": "Incident Commander Agent",
+  "final_commander_decision": {
+    "status": "complete",
+    "summary": "High-severity containment recommendation for suspicious PowerShell activity and possible finance data exfiltration on FIN-042."
+  },
+  "incident_id": "WL-INC-001",
+  "internal_queue_note": "The backend deterministic runtime/state machine continues downstream execution through its internal handoff queue only after successful visible Band posts.",
+  "provider_stack": [
+    {
+      "provider": "aimlapi",
+      "roles": [
+        "Alert Triage Agent",
+        "Threat Intel Agent",
+        "Forensics Agent"
+      ]
+    },
+    {
+      "provider": "featherless",
+      "roles": [
+        "Compliance Agent",
+        "Incident Commander Agent"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "completed_at": "2026-06-13T00:00:01Z",
+      "delivery": {
+        "attempted_at": "2026-06-13T00:00:00Z",
+        "delivered": true,
+        "status": "delivered",
+        "status_code": 201
+      },
+      "display_name": "Alert Triage Agent",
+      "handoff_targets": [
+        "Threat Intel Agent",
+        "Forensics Agent"
+      ],
+      "provider": "aimlapi",
+      "provider_mode": "deterministic_fallback",
+      "role": "triage",
+      "status": "complete",
+      "summary": "Classified WL-INC-001 as high severity and opened parallel Threat Intel and Forensics work."
+    },
+    {
+      "completed_at": "2026-06-13T00:00:03Z",
+      "delivery": {
+        "attempted_at": "2026-06-13T00:00:02Z",
+        "delivered": true,
+        "status": "delivered",
+        "status_code": 201
+      },
+      "display_name": "Threat Intel Agent",
+      "handoff_targets": [
+        "Compliance Agent"
+      ],
+      "provider": "aimlapi",
+      "provider_mode": "deterministic_fallback",
+      "role": "threat_intel",
+      "status": "complete",
+      "summary": "Enriched suspicious PowerShell and exfiltration indicators for compliance review."
+    },
+    {
+      "completed_at": "2026-06-13T00:00:05Z",
+      "delivery": {
+        "attempted_at": "2026-06-13T00:00:04Z",
+        "delivered": true,
+        "status": "delivered",
+        "status_code": 201
+      },
+      "display_name": "Forensics Agent",
+      "handoff_targets": [
+        "Compliance Agent"
+      ],
+      "provider": "aimlapi",
+      "provider_mode": "deterministic_fallback",
+      "role": "forensics",
+      "status": "complete",
+      "summary": "Built the FIN-042 host timeline and preserved evidence gaps for audit context."
+    },
+    {
+      "completed_at": "2026-06-13T00:00:07Z",
+      "delivery": {
+        "attempted_at": "2026-06-13T00:00:06Z",
+        "delivered": true,
+        "status": "delivered",
+        "status_code": 201
+      },
+      "display_name": "Compliance Agent",
+      "handoff_targets": [
+        "Incident Commander Agent"
+      ],
+      "provider": "featherless",
+      "provider_mode": "deterministic_fallback",
+      "role": "compliance",
+      "status": "complete",
+      "summary": "Confirmed audit preservation needs and escalated decision authority to Commander."
+    },
+    {
+      "completed_at": "2026-06-13T00:00:09Z",
+      "delivery": {
+        "attempted_at": "2026-06-13T00:00:08Z",
+        "delivered": true,
+        "status": "delivered",
+        "status_code": 201
+      },
+      "display_name": "Incident Commander Agent",
+      "handoff_targets": [],
+      "provider": "featherless",
+      "provider_mode": "deterministic_fallback",
+      "role": "commander",
+      "status": "complete",
+      "summary": "Issued high-severity containment recommendation for FIN-042 and finance data exposure risk."
+    }
+  ],
+  "run_id": "demo-example",
+  "schema_version": 1,
+  "source_state_file": ".workflow-legion-state/mission-control-status.json",
+  "updated_at": "2026-06-13T00:00:09Z"
+}

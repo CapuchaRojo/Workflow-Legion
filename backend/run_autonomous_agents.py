@@ -35,6 +35,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Directory for autonomous runtime state files.",
     )
     parser.add_argument(
+        "--frontend-studio-export",
+        default=None,
+        help=(
+            "Optional sanitized Mission Control JSON export path for the "
+            "frontend showcase."
+        ),
+    )
+    parser.add_argument(
         "--max-turns",
         type=int,
         default=12,
@@ -105,6 +113,7 @@ async def main(argv: Sequence[str] | None = None) -> int:
         dry_run=args.dry_run,
         incident_id=args.incident,
         state_dir=args.state_dir,
+        frontend_studio_export=args.frontend_studio_export,
         max_turns=args.max_turns,
         poll_interval_seconds=args.poll_interval,
         run_id=args.run_id,
@@ -158,6 +167,8 @@ async def main(argv: Sequence[str] | None = None) -> int:
     print(f"Run ID: {state.run_id}")
     print(f"State file: {runtime.state_store.path_for(state.incident_id, state.run_id)}")
     print(f"Mission Control state: {runtime.state_store.mission_control_path()}")
+    if runtime.state_store.frontend_export_path:
+        print(f"Frontend Studio export: {runtime.state_store.frontend_export_path}")
     return 0 if state.status == "complete" else 1
 
 
