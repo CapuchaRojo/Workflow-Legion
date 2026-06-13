@@ -50,7 +50,7 @@ POST /api/incidents/wl-inc-001/start
 The new runtime is separate. It is event-driven:
 
 ```text
-Band message received -> role trigger matched -> task executed -> role posts to Band -> next mention wakes next role
+Band human start received -> role trigger matched -> task executed -> role posts to Band -> backend handoff event wakes next role
 ```
 
 ## Runtime Receive And React Path
@@ -81,6 +81,14 @@ chat messages path. The repo only had validated REST send/participant lookup
 code and no local official receive/WebSocket documentation, so this adapter is
 intentionally isolated. If Band publishes or confirms an SDK/WebSocket receive
 contract, replace `LiveBandEventSource` without changing role logic.
+
+Live testing has shown that the current Band receive feed exposes human-authored
+start messages but may not echo agent-authored posts back to the runtime. To keep
+the demo autonomous after one human Band trigger, live mode uses an internal
+handoff queue after each successful agent post. The agent output still appears
+visibly in Band through that role's Band identity; the backend queue carries the
+same run marker, author role, message ID, and handoff mentions forward so the
+next role can wake without a second human action.
 
 Each role ignores its own authored messages, processes each message ID only once,
 and will not rerun after completion. The runtime has a max-turn guard and stops
@@ -161,18 +169,18 @@ backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --once --dump-
 Dump mode fetches one recent message batch, prints safe summaries, and exits
 without posting agent replies.
 
-If Triage posts but Threat Intel and Forensics do not wake, run live with a
+To verify whether Band receive is echoing agent-authored posts, run live with a
 higher receive limit:
 
 ```powershell
 backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --run-id live-debug --poll-interval 3 --max-turns 8 --message-limit 25 --debug-receive
 ```
 
-Downstream automation requires receive visibility of agent-authored posts. If
-debug output says `No agent-authored messages visible in receive batch` or
+If debug output says `No agent-authored messages visible in receive batch` or
 `Latest batch contains only human-authored messages`, the runtime is receiving
-Band messages but the current receive key or endpoint is not showing the agent
-posts needed to wake downstream roles.
+Band messages but the current receive key or endpoint is not echoing agent posts.
+In live mode, downstream automation continues through the internal handoff queue
+after each successful visible Band post.
 
 Band receive may render a visible mention as an internal token such as:
 
@@ -275,4 +283,4 @@ docs/screenshots/proof-autonomous-five-agent-band-handoff.png
 
 Honest proof boundary:
 
-> Autonomous runtime is not validated live until a Band screenshot shows the full five-agent handoff chain from one human start prompt.
+> Autonomous runtime is not validated live until a Band screenshot shows all five role identities posting the incident handoff chain after one human start prompt. Current downstream wakeups are backend event-queue driven because Band receive does not echo agent-authored posts to the runtime.

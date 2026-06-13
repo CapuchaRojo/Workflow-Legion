@@ -346,6 +346,7 @@ class AutonomousBandRuntime:
         max_turns: int = 12,
         run_id: str | None = None,
         stop_after_complete: bool = True,
+        internal_handoff_queue_enabled: bool | None = None,
         settings_obj: Settings = settings,
     ) -> None:
         self.registry = registry
@@ -363,6 +364,13 @@ class AutonomousBandRuntime:
         self.settings = settings_obj
         self.debug_receive = False
         self.include_seen_debug = False
+        self.internal_handoff_queue_enabled = (
+            isinstance(event_source, LiveBandEventSource)
+            if internal_handoff_queue_enabled is None
+            else internal_handoff_queue_enabled
+        )
+        self._internal_events: deque[BandMessageEvent] = deque()
+        self._internal_event_counter = 0
 
     def enable_receive_debug(
         self,
@@ -392,6 +400,7 @@ class AutonomousBandRuntime:
             f"poll_interval={poll_interval if poll_interval is not None else 'n/a'} "
             f"message_limit={message_limit if message_limit is not None else 'n/a'} "
             f"include_seen_debug={self.include_seen_debug} "
+            f"internal_handoff_queue={self.internal_handoff_queue_enabled} "
             f"run_id={self.run_id or 'pending'}"
         )
 
@@ -573,15 +582,12 @@ class AutonomousBandRuntime:
         async for event in self.event_source.events():
             await self.handle_event(event)
 
-            if (
-                self.stop_after_complete
-                and self.state
-                and self.state.status == "complete"
-            ):
+            if self._should_stop_after_event():
                 break
-            if self.state and self.state.turn_count >= self.state.max_turns:
-                self.state.status = "max_turns_exceeded"
-                self.state_store.save(self.state)
+
+            await self._drain_internal_events()
+
+            if self._should_stop_after_event():
                 break
 
         if self.state:
@@ -753,6 +759,49 @@ class AutonomousBandRuntime:
             sent_message,
             author_handle=self.registry[role].handle,
         )
+        self._enqueue_internal_handoff(role, sent_message)
+
+    async def _drain_internal_events(self) -> None:
+        while self._internal_events and not self._should_stop_after_event():
+            await self.handle_event(self._internal_events.popleft())
+
+    def _enqueue_internal_handoff(
+        self,
+        role: str,
+        sent_message: SentBandMessage,
+    ) -> None:
+        if not self.internal_handoff_queue_enabled:
+            return
+        if not sent_message.delivery.delivered:
+            return
+        if not sent_message.mention_handles:
+            return
+        if self.state is None:
+            return
+
+        self._internal_event_counter += 1
+        self._internal_events.append(
+            BandMessageEvent(
+                message_id=(
+                    f"internal:{self.state.run_id}:"
+                    f"{role}:{self._internal_event_counter}"
+                ),
+                content=sent_message.content,
+                author_handle=self.registry[role].handle,
+                mention_handles=sent_message.mention_handles,
+            )
+        )
+
+    def _should_stop_after_event(self) -> bool:
+        if self.state is None:
+            return False
+        if self.stop_after_complete and self.state.status == "complete":
+            return True
+        if self.state.turn_count >= self.state.max_turns:
+            self.state.status = "max_turns_exceeded"
+            self.state_store.save(self.state)
+            return True
+        return False
 
 
 def parse_auto_start(content: str) -> str | None:

@@ -520,6 +520,51 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             ["m-old-start", "m-new-triage"],
         )
 
+    def test_live_human_start_drives_full_internal_queue_chain(self) -> None:
+        runtime, messenger, _source = self._live_internal_queue_runtime()
+
+        state = asyncio.run(runtime.run_until_complete())
+
+        self.assertEqual(state.status, "complete")
+        self.assertEqual(
+            state.completed_roles,
+            ["triage", "threat_intel", "forensics", "compliance", "commander"],
+        )
+        self.assertEqual(
+            [message.role for message in messenger.sent_messages],
+            ["triage", "threat_intel", "forensics", "compliance", "commander"],
+        )
+
+    def test_internal_event_ids_are_processed_once_per_role(self) -> None:
+        runtime, _messenger, _source = self._live_internal_queue_runtime(
+            run_id="internal-unit"
+        )
+
+        state = asyncio.run(runtime.run_until_complete())
+
+        self.assertEqual(state.processed_message_ids["triage"], ["m-human-start"])
+        self.assertEqual(
+            state.processed_message_ids["threat_intel"],
+            ["internal:internal-unit:triage:1"],
+        )
+        self.assertEqual(
+            state.processed_message_ids["forensics"],
+            ["internal:internal-unit:triage:1"],
+        )
+        self.assertEqual(
+            state.processed_message_ids["compliance"],
+            [
+                "internal:internal-unit:threat_intel:2",
+                "internal:internal-unit:forensics:3",
+            ],
+        )
+        self.assertEqual(
+            state.processed_message_ids["commander"],
+            ["internal:internal-unit:compliance:4"],
+        )
+        for message_ids in state.processed_message_ids.values():
+            self.assertEqual(len(message_ids), len(set(message_ids)))
+
     def test_cancelled_cli_path_exits_cleanly(self) -> None:
         async def cancelled_main(argv=None):
             raise asyncio.CancelledError()
@@ -582,6 +627,34 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             state_store=AutonomousStateStore(tempfile.mkdtemp()),
             settings_obj=settings_obj,
         )
+
+    def _live_internal_queue_runtime(
+        self,
+        run_id: str = "internal-unit",
+    ):
+        settings_obj = self._settings_without_provider_keys()
+        registry = build_band_remote_agent_registry(settings_obj)
+        start = BandMessageEvent(
+            message_id="m-human-start",
+            content=f"@{registry['triage'].handle} AUTO:START WL-INC-001",
+            author_handle="human",
+            mention_handles=(registry["triage"].handle,),
+        )
+        source = _PollingSequenceLiveBandEventSource([[start]])
+        messenger = DryRunBandMessenger(registry)
+        runtime = AutonomousBandRuntime(
+            registry=registry,
+            event_source=source,
+            messenger=messenger,
+            reasoning_provider=AutonomousReasoningProvider(
+                provider_mode="deterministic",
+                settings_obj=settings_obj,
+            ),
+            state_store=AutonomousStateStore(tempfile.mkdtemp()),
+            run_id=run_id,
+            settings_obj=settings_obj,
+        )
+        return runtime, messenger, source
 
     def _settings_without_provider_keys(self) -> Settings:
         return Settings(
