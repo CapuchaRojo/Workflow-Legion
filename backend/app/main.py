@@ -3,13 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app.core.settings import settings
-from app.models.incident import IncidentState
+from app.models.incident import AgentFinding, IncidentState
 from app.services.band_client import (
     BandClient,
     BandConfigurationError,
     BandDeliveryResult,
     extract_mention_handles,
     normalize_mention_handles,
+)
+from app.services.band_agent_registry import (
+    build_band_client_for_agent,
+    build_band_remote_agent_registry,
 )
 from app.services.deterministic_agents import run_deterministic_workflow
 from app.services.final_report import build_final_report
@@ -106,9 +110,7 @@ async def start_demo_incident(request: StartIncidentRequest):
     band_delivery: list[BandDeliveryResult] = []
 
     if request.post_to_band:
-        band_delivery = await _post_workflow_to_band(
-            [finding.band_message for finding in findings]
-        )
+        band_delivery = await _post_workflow_to_band(findings)
 
     return WorkflowRunResponse(
         incident=completed_incident,
@@ -178,15 +180,34 @@ def _band_message_mention_handles(
     return extract_mention_handles(message) or _default_band_mention_handles()
 
 
-async def _post_workflow_to_band(messages: list[str]) -> list[BandDeliveryResult]:
-    client = _build_triage_band_client()
+async def _post_workflow_to_band(findings: list[AgentFinding]) -> list[BandDeliveryResult]:
     chat_id = _required_band_chat_id()
+    registry = build_band_remote_agent_registry(settings)
     delivery: list[BandDeliveryResult] = []
 
     try:
-        for message in messages:
+        for finding in findings:
+            agent = registry.get(finding.agent) or registry["triage"]
+            client = build_band_client_for_agent(settings, agent)
+
+            if not client.configured:
+                delivery.append(
+                    BandDeliveryResult(
+                        delivered=False,
+                        detail=(
+                            f"Skipped Band post for {agent.display_name}: "
+                            f"agent API key is not configured."
+                        ),
+                    )
+                )
+                continue
+
             delivery.append(
-                await _send_workflow_message_to_band(client, chat_id, message)
+                await _send_workflow_message_to_band(
+                    client,
+                    chat_id,
+                    finding.band_message,
+                )
             )
     except BandConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
