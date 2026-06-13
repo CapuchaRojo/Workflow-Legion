@@ -112,10 +112,7 @@ class BandClient:
             if mention_handles is not None
             else extract_mention_handles(content)
         )
-        if not handles:
-            raise BandConfigurationError("At least one Band mention handle is required.")
-
-        mentions = await self._resolve_mentions(chat_id, handles)
+        mentions = await self._resolve_mentions(chat_id, handles) if handles else []
         message_content = self._ensure_visible_mentions(content, mentions)
 
         payload = {

@@ -8,6 +8,7 @@ from app.core.settings import settings
 class LLMProvider(str, Enum):
     OPENAI = "openai"
     FEATHERLESS = "featherless"
+    AIML = "aiml"
     AIMLAPI = "aimlapi"
     ANTHROPIC = "anthropic"
 
@@ -30,12 +31,21 @@ def get_provider_config(provider: str) -> ProviderConfig:
             model=getattr(settings, "featherless_model", None),
         )
 
-    if provider == LLMProvider.AIMLAPI:
+    if provider in (LLMProvider.AIML, LLMProvider.AIMLAPI, "aiml_api"):
         return ProviderConfig(
             name="aimlapi",
-            api_key=getattr(settings, "aimlapi_api_key", None),
-            base_url=getattr(settings, "aimlapi_base_url", "https://api.aimlapi.com/v1"),
-            model=getattr(settings, "aimlapi_model", None),
+            api_key=(
+                getattr(settings, "aiml_api_key", None)
+                or getattr(settings, "aimlapi_api_key", None)
+            ),
+            base_url=(
+                getattr(settings, "aiml_base_url", None)
+                or getattr(settings, "aimlapi_base_url", "https://api.aimlapi.com/v1")
+            ),
+            model=(
+                getattr(settings, "aiml_model", None)
+                or getattr(settings, "aimlapi_model", None)
+            ),
         )
 
     if provider == LLMProvider.ANTHROPIC:

@@ -42,12 +42,17 @@ class Settings(BaseSettings):
     featherless_base_url: str = "https://api.featherless.ai/v1"
     featherless_model: str | None = None
 
+    aiml_api_key: str | None = None
+    aiml_base_url: str = "https://api.aimlapi.com/v1"
+    aiml_model: str | None = None
+
     aimlapi_api_key: str | None = None
     aimlapi_base_url: str = "https://api.aimlapi.com/v1"
     aimlapi_model: str | None = None
 
     llm_provider: str = "openai"
     llm_fallback_provider: str = "featherless"
+    autonomous_agent_provider_mode: str = "auto"
 
     class Config:
         env_file = ".env"
