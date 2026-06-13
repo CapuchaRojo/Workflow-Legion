@@ -2,11 +2,26 @@
 
 ## Current Validated Proof
 
-The validated live remote proof is the Workflow Triage Remote Agent posting into the Band room through the Band Agent API.
+Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys.
+
+Validated delivery state:
+
+- Triage delivered true
+- Threat Intel delivered true
+- Forensics delivered true
+- Compliance delivered true
+- Incident Commander delivered true
+- No fallback mention-resolution errors
 
 The deterministic five-agent backend workflow is validated by tests and supports reliable replay for judging.
 
-The full five-agent remote Band room is the expansion path and should not be claimed as live until a final smoke test proves all role handoffs resolve to actual Band participants.
+Proof screenshot:
+
+docs/screenshots/proof-five-remote-agents-band-post.png
+
+Proof boundary:
+
+Earlier proof validated the remote Triage Agent. Later proof validated Triage plus Threat Intel. Current proof validates all five remote Band identities. This does not overclaim autonomous live reasoning beyond the validated deterministic workflow plus remote Band identity proof.
 
 ## Agent Chain
 
@@ -18,26 +33,25 @@ Required handoff order:
 4. Compliance Agent mentions Incident Commander Agent.
 5. Incident Commander Agent posts the final containment decision.
 
-## Required Remote Handles
+## Remote Identity Notes
 
-Before spawning the full room, confirm the actual Band handles for:
+The final proof uses role-specific Band Agent API keys for:
 
-- Triage Agent:
-- Threat Intel Agent:
-- Forensics Agent:
-- Compliance Agent:
-- Incident Commander Agent:
-- Human observer / Redhood:
+- Triage Agent
+- Threat Intel Agent
+- Forensics Agent
+- Compliance Agent
+- Incident Commander Agent
 
-These handles must match the Band room participant handles exactly.
+Do not document real Band API keys, real Band agent IDs, chat IDs, sponsor codes, QR codes, redemption links, or private handles in this repository.
 
-## Current Risk
+## Current Risk Boundary
 
 The backend currently supports fallback mention delivery through BAND_DEFAULT_MENTION_HANDLES.
 
-This was useful for the initial remote Triage Agent smoke proof, but it can hide a failed role handoff during full remote-agent testing.
+This was useful during early remote-agent smoke proofing, but it can hide a failed role handoff during remote-agent testing.
 
-For the final five-agent smoke test, role mentions must resolve directly to their intended agent handles.
+For the current validated proof, role mentions resolved without fallback mention-resolution errors.
 
 A message that falls back to the human observer should be treated as a partial proof, not a full handoff proof.
 
@@ -51,20 +65,19 @@ POST /api/incidents/wl-inc-001/start
 
 When post_to_band is true, the backend posts workflow messages through the configured Triage Agent API key.
 
-This is valid for demo replay but does not yet prove that five separate remote Band agents posted independently.
+The separate final proof screenshot validates all five remote Band identities posting through role-specific Band Agent API keys.
 
-## Spawn Gate
+## Submission Gate
 
-Do not spawn or claim the full five-agent remote Band room until:
+Before final submission, confirm:
 
-- [ ] all five Band remote agents exist
-- [ ] all five agent handles are known
-- [ ] all five agents are participants in the same Band room
-- [ ] Triage can mention Threat Intel and Forensics without fallback
-- [ ] Threat Intel can mention Compliance without fallback
-- [ ] Forensics can mention Compliance without fallback
-- [ ] Compliance can mention Commander without fallback
-- [ ] Commander can post final decision
+- [ ] proof screenshot exists at docs/screenshots/proof-five-remote-agents-band-post.png
+- [ ] Triage delivered true
+- [ ] Threat Intel delivered true
+- [ ] Forensics delivered true
+- [ ] Compliance delivered true
+- [ ] Incident Commander delivered true
+- [ ] no fallback mention-resolution errors
 - [ ] backend tests pass
 - [ ] no .env, API keys, sponsor codes, QR codes, node_modules, dist, or build output are committed
 
@@ -72,16 +85,14 @@ Do not spawn or claim the full five-agent remote Band room until:
 
 Allowed:
 
-"The validated live remote proof is the Workflow Triage Remote Agent posting into Band."
+"Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys."
 
 "The deterministic five-agent workflow is validated in the backend."
 
-"The full five-agent remote Band room is the expansion path."
+"Band is the core collaboration fabric; the backend executes deterministic workflow/runtime logic."
 
 Do not say:
 
-"All five remote Band agents are live."
-
-"The full remote room has been proven."
+"Workflow Legion proves open-ended autonomous live reasoning."
 
 "Band is only a notification layer."

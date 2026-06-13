@@ -18,7 +18,7 @@ The demo incident is WL-INC-001.
 
 A suspicious PowerShell activity alert appears on finance host FIN-042 for user j.morgan. The risk is possible finance data exfiltration.
 
-The validated remote proof is the Workflow Triage Remote Agent posting successfully into the Band room through the Band Agent API. The full five-agent remote Band room is the expansion path. For this submission, the five-agent workflow also has deterministic structured outputs in the backend so the incident can be replayed reliably during judging.
+Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys: Triage, Threat Intel, Forensics, Compliance, and Incident Commander. No fallback mention-resolution errors were observed. The backend workflow is deterministic so the incident can be replayed reliably during judging.
 
 ## Walkthrough
 
@@ -34,6 +34,8 @@ After that, the Compliance Agent reviews audit and escalation concerns. It does 
 
 Finally, the Incident Commander Agent produces the decision. The commander classifies the incident as high severity and recommends containment: isolate FIN-042, reset j.morgan's credentials, preserve PowerShell logs, and continue scoping for possible finance data exposure.
 
+The proof screenshot shows the five role-specific remote Band posts. The final report output shows the deterministic commander decision and audit trail.
+
 ## Architecture Message
 
 The architecture is intentionally layered.
@@ -47,6 +49,8 @@ The static frontend showcase presents the command-room product experience.
 Native.Builder and NativelyAI are used as the showcase and productization layer.
 
 AI/ML API and Featherless are optional provider support paths. They are not the coordination fabric.
+
+This demo does not claim autonomous live reasoning beyond the validated deterministic workflow plus remote Band identity proof.
 
 ## Closing
 

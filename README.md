@@ -23,9 +23,20 @@ Band is not a final notification channel. It is the shared coordination fabric.
 
 Current Validated Proof
 
-The current validated live remote proof is:
+Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys.
 
-Workflow Triage Remote Agent posted successfully into the Band room through the Band Agent API.
+Current validated proof:
+
+Alert Triage Agent delivered true.
+Threat Intel Agent delivered true.
+Forensics Agent delivered true.
+Compliance Agent delivered true.
+Incident Commander Agent delivered true.
+No fallback mention-resolution errors were observed.
+
+Final proof screenshot:
+
+docs/screenshots/proof-five-remote-agents-band-post.png
 
 Validated repo state:
 
@@ -40,28 +51,16 @@ POST /api/incidents/wl-inc-001/start with post_to_band=true delivered determinis
 Band participant lookup and dynamic mention resolution are implemented.
 .env and backend/.env remain ignored.
 .env.example contains placeholders only.
-Backend tests pass with 7 tests.
+Backend tests pass.
 The frontend showcase builds successfully.
 
 Important proof boundary:
 
-The post_to_band=true path proves that the backend can replay the deterministic five-agent workflow into Band through the configured Band client path. It does not prove that all five remote Band agents are live or posting independently.
+Earlier proof validated the remote Triage Agent. Later proof validated Triage plus Threat Intel. Current proof validates all five remote Band identities posting into the Band command room through role-specific Band Agent API keys.
 
-The validated live remote proof is the Workflow Triage Remote Agent posting into Band through the Band Agent API.
+The backend remains a deterministic workflow/runtime layer. Band remains the visible collaboration fabric where role handoffs, messages, mentions, shared context, and task state are shown.
 
-Current Known Limitation
-
-Threat Intel, Forensics, Compliance, and Commander are currently modeled in the deterministic workflow, but they are next-step Band participants unless they are actually created and added to the Band room as remote agents.
-
-Until those role agents are present as Band participants, incident posting may fall back to:
-
-BAND_DEFAULT_MENTION_HANDLES=redhood
-
-The fallback preserves visible role-handoff text in the Band message while routing the actual Band mention payload to an existing participant.
-
-This is intentional and documented so the demo does not overclaim that all five remote agents are live.
-
-The full five-agent remote Band room is the expansion path.
+This proof does not overclaim autonomous live reasoning beyond the validated deterministic workflow plus remote Band identity posting proof.
 
 Incident Scenario
 
@@ -167,7 +166,7 @@ Invoke-RestMethod `
 
 Proof note:
 
-This path posts deterministic workflow messages through the configured Band client path. It does not prove that all five remote Band agents posted independently.
+This path posts deterministic workflow messages through the configured Band client path. The final proof screenshot separately validates all five remote Band identities posting into the Band command room through role-specific Band Agent API keys.
 
 Current Backend Progress
 
@@ -207,19 +206,17 @@ This backend path supports or advances:
 #13 — final incident report output
 #28 — deterministic mock outputs for all five agents
 #29 — backend health, settings, provider router imports, and demo endpoint validation
-#34 — remote Triage Agent / Band API smoke proof
+#34 — remote Band Agent API smoke proof progression
 Validation Commands
 Backend validation
 
 From the repository root:
 
-.\backend\.venv\Scripts\Activate.ps1
-python -m unittest discover -s tests -v
-deactivate
+backend\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
 Expected result:
 
-Ran 7 tests
+Ran 16 tests
 OK
 Frontend showcase validation
 
@@ -265,7 +262,7 @@ Current integration direction:
 Band — core remote-agent collaboration fabric
 Python/FastAPI — agent runtime, deterministic incident workflow, and API layer
 AI/ML API — validated model-provider path for Band-connected reasoning experiments
-Featherless — planned optional open-model provider for Compliance or Commander reasoning
+Featherless — optional open-model provider support path
 Native.Builder / NativelyAI — showcase and productization layer, not the core runtime
 Static Showcase Page
 
@@ -310,37 +307,27 @@ Native.Builder / NativelyAI was used as a showcase/productization path. The loca
 
 The showcase currently states the honest proof level:
 
-Workflow Triage Remote Agent is validated. The full five-agent remote Band room is the planned expansion path.
+Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys. The backend workflow remains deterministic and repeatable for judging.
 
 Remote Band Agent Readiness
 
-The validated live remote proof is the Workflow Triage Remote Agent posting into the Band room through the Band Agent API.
+The current smoke proof validates all five remote Band agent identities posting into the Band command room through role-specific Band Agent API keys:
+
+Triage delivered true.
+Threat Intel delivered true.
+Forensics delivered true.
+Compliance delivered true.
+Incident Commander delivered true.
+No fallback mention-resolution errors were observed.
 
 The deterministic five-agent backend workflow is validated by tests and supports reliable replay for judging.
 
-The full five-agent remote Band room should not be claimed as live until a final smoke test proves all role handoffs resolve to actual Band participants.
+Submission safety gate:
 
-Before spawning the full room, confirm the actual Band handles for:
-
-Triage Agent
-Threat Intel Agent
-Forensics Agent
-Compliance Agent
-Incident Commander Agent
-Human observer / Redhood
-
-Spawn gate:
-
-all five Band remote agents exist,
-all five agent handles are known,
-all five agents are participants in the same Band room,
-Triage can mention Threat Intel and Forensics without fallback,
-Threat Intel can mention Compliance without fallback,
-Forensics can mention Compliance without fallback,
-Compliance can mention Commander without fallback,
-Commander can post final decision,
 backend tests pass,
-no .env, API keys, sponsor codes, QR codes, node_modules, dist, or build output are committed.
+no .env, API keys, sponsor codes, QR codes, node_modules, dist, or build output are committed,
+the demo describes Band as the core collaboration fabric,
+the demo does not claim autonomous live reasoning beyond the validated deterministic workflow and remote Band identity proof.
 Screenshot Archive
 
 Recommended screenshot archive path:
@@ -349,15 +336,15 @@ docs/screenshots/
 
 Current proof screenshot:
 
-docs/screenshots/proof-remote-triage-agent-band-post.png
+docs/screenshots/proof-five-remote-agents-band-post.png
 
 Suggested screenshot caption:
 
-Workflow Triage Remote Agent posting WL-INC-001 workflow messages into the Band command room through the Band Agent API.
+Five Workflow Legion remote Band agent identities posting WL-INC-001 role-specific workflow messages into the Band command room through role-specific Band Agent API keys.
 
 Additional screenshots to capture before final submission:
 
-Band room participant list showing Workflow Triage Remote Agent.
+Band room proof showing Triage, Threat Intel, Forensics, Compliance, and Incident Commander posts.
 Band message timeline showing WL-INC-001 workflow posts.
 FastAPI /health response.
 FastAPI post_to_band=true incident response.
@@ -433,7 +420,7 @@ The current demo proves the critical path:
 
 Backend workflow
 → Band Agent API
-→ Workflow Triage Remote Agent
+→ five role-specific remote Band agent identities
 → shared Band command room
 → visible incident handoff messages
 → deterministic five-agent final report
@@ -441,18 +428,17 @@ Honest Claim Boundary
 
 Allowed:
 
-Workflow Triage Remote Agent is validated.
+Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys.
 The deterministic five-agent workflow is validated in the backend.
 Band coordinates the agent workflow.
 The backend executes deterministic workflow/runtime logic.
 Native.Builder / NativelyAI supports showcase/productization.
 AI/ML API and Featherless are optional provider support paths.
-The full five-agent remote Band room is the expansion path.
+The proof screenshot shows five role-specific remote Band agent posts.
 
 Do not claim:
 
-all five remote Band agents are live,
-the full remote room has been proven,
+open-ended autonomous live reasoning has been proven,
 Band is only a notification layer,
 provider APIs are required for the validated proof,
 Native.Builder coordinates agents,

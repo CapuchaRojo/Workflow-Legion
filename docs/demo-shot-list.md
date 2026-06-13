@@ -8,7 +8,7 @@ Show Workflow Legion as an agent-coordinated cyber incident command room.
 
 Keep the story centered on Band.
 
-Do not claim that all five remote agents are live in Band. The validated live remote proof is the Workflow Triage Remote Agent posting into Band through the Band Agent API. The five-agent workflow is currently represented with deterministic backend outputs and is the expansion path for full remote room execution.
+Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys. The backend workflow remains deterministic and repeatable for judging. Do not claim autonomous live reasoning beyond that validated proof.
 
 ## Shot 1: Repository / README
 
@@ -28,17 +28,17 @@ Narration:
 Purpose: Show validated Band integration.
 
 Show:
-- docs/screenshots/proof-remote-triage-agent-band-post.png
+- docs/screenshots/proof-five-remote-agents-band-post.png
 
 Narration:
-"The validated live remote proof is the Workflow Triage Remote Agent posting successfully into the Band room through the Band Agent API."
+"Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys."
 
 Do not say:
-- "All five remote agents are live"
 - "The full room is production-ready"
+- "The agents are doing autonomous live reasoning beyond the deterministic workflow proof"
 
 Say instead:
-"The full five-agent remote Band room is the expansion path."
+"The proof shows Triage, Threat Intel, Forensics, Compliance, and Incident Commander posting with no fallback mention-resolution errors."
 
 ## Shot 3: Backend Tests Passing
 
@@ -46,10 +46,10 @@ Purpose: Prove deterministic workflow stability.
 
 Show terminal:
 
-python -m unittest discover -s tests -v
+backend\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
 Expected:
-- Ran 5 tests
+- All backend tests pass
 - OK
 
 Narration:
@@ -146,7 +146,7 @@ Use only assets currently available or validated:
 - frontend-showcase local build
 - frontend-showcase UI
 - deterministic agent outputs
-- final incident report output if available
+- final incident report output
 - GitHub PR and issue progress if useful
 
 ## Avoid These Claims
@@ -155,7 +155,7 @@ Do not claim:
 - Workflow Legion prevents breaches
 - Workflow Legion replaces SOC teams
 - Workflow Legion gives final legal or regulatory advice
-- all five remote Band agents are live
+- autonomous live reasoning beyond the validated deterministic workflow plus remote Band identity proof
 - provider APIs are required for the current validated proof
 - Native.Builder is the coordination layer
 
@@ -165,4 +165,4 @@ Preferred language:
 - supports command decisions
 - Band coordinates agents
 - backend executes deterministic workflow logic
-- full five-agent remote Band room is the expansion path
+- five role-specific remote Band agent identities posted into the Band command room

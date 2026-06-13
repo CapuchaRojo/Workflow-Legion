@@ -11,11 +11,11 @@
 
 Run from repo root:
 
-python -m unittest discover -s tests -v
+backend\.venv\Scripts\python.exe -m unittest discover -s tests -v
 
 Required result:
 
-- [ ] Ran 5 tests.
+- [ ] All backend tests pass.
 - [ ] OK.
 - [ ] No secrets printed in terminal output.
 
@@ -37,11 +37,12 @@ Required result:
 
 ## Band Proof Validation
 
-- [ ] Band proof screenshot exists at docs/screenshots/proof-remote-triage-agent-band-post.png.
+- [ ] Band proof screenshot exists at docs/screenshots/proof-five-remote-agents-band-post.png.
 - [ ] README clearly states the validated proof level.
-- [ ] Demo says the Workflow Triage Remote Agent is validated.
-- [ ] Demo does not claim all five remote agents are live.
-- [ ] Demo says the full five-agent remote Band room is the expansion path.
+- [ ] Demo says Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys.
+- [ ] Demo says the validated posts are Triage, Threat Intel, Forensics, Compliance, and Incident Commander.
+- [ ] Demo says no fallback mention-resolution errors were observed.
+- [ ] Demo does not claim autonomous live reasoning beyond the validated deterministic workflow and remote Band identity proof.
 
 ## Demo Story Validation
 
@@ -54,6 +55,7 @@ Required result:
 - [ ] Script stays within 2 to 3 minutes.
 - [ ] Band is described as the coordination layer, not a notifier.
 - [ ] Backend is described as deterministic workflow/runtime logic.
+- [ ] Final report output is shown or summarized.
 - [ ] Native.Builder / NativelyAI is described as showcase/productization layer.
 - [ ] AI/ML API and Featherless are described as optional provider support paths.
 
@@ -64,7 +66,9 @@ Required result:
 - [ ] Show backend tests passing.
 - [ ] Show frontend showcase build passing.
 - [ ] Walk through frontend-showcase.
-- [ ] Show final report or deterministic commander output if available.
+- [ ] Show deterministic backend workflow.
+- [ ] Show five role-specific remote Band agent posts.
+- [ ] Show final report output.
 - [ ] End with the value proposition: Workflow Legion turns a chaotic security alert into an auditable, agent-coordinated command-room workflow.
 
 ## Final Submission Safety
