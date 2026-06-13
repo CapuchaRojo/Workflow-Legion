@@ -1,7 +1,21 @@
 from app.models.incident import AgentFinding, EvidenceItem, IncidentState, TimelineEvent
 
 
-def build_triage_finding(incident: IncidentState, threat_handle: str, forensics_handle: str) -> AgentFinding:
+def band_mention(handle: str) -> str:
+    """Render a configured Band handle as a visible @mention.
+
+    Handles should be stored in env/config without a leading @, but Band message
+    content needs the visible @ token so the mention can resolve cleanly.
+    """
+
+    return f"@{str(handle).strip().removeprefix('@')}"
+
+
+def build_triage_finding(
+    incident: IncidentState,
+    threat_handle: str,
+    forensics_handle: str,
+) -> AgentFinding:
     return AgentFinding(
         agent="triage",
         status="complete",
@@ -26,14 +40,18 @@ def build_triage_finding(incident: IncidentState, threat_handle: str, forensics_
             "Prepare containment approval if exfiltration is confirmed.",
         ],
         band_message=(
-            f"{threat_handle} {forensics_handle} WL-INC-001 triage: suspicious "
-            "PowerShell activity on FIN-042, user j.morgan, possible data exfiltration. "
-            "Please enrich indicators and build the endpoint/network timeline."
+            f"{band_mention(threat_handle)} {band_mention(forensics_handle)} "
+            "WL-INC-001 triage: suspicious PowerShell activity on FIN-042, "
+            "user j.morgan, possible data exfiltration. Please enrich indicators "
+            "and build the endpoint/network timeline."
         ),
     )
 
 
-def build_threat_intel_finding(incident: IncidentState, compliance_handle: str) -> AgentFinding:
+def build_threat_intel_finding(
+    incident: IncidentState,
+    compliance_handle: str,
+) -> AgentFinding:
     destination_ip = incident.indicators["destination_ip"]
     return AgentFinding(
         agent="threat_intel",
@@ -67,14 +85,17 @@ def build_threat_intel_finding(incident: IncidentState, compliance_handle: str) 
             "Ask Compliance to assess finance data reporting obligations.",
         ],
         band_message=(
-            f"{compliance_handle} Threat Intel update for WL-INC-001: IOCs are suspicious "
-            "by context, not conclusive alone. Finance data access raises audit and "
-            "reporting review needs."
+            f"{band_mention(compliance_handle)} Threat Intel update for WL-INC-001: "
+            "IOCs are suspicious by context, not conclusive alone. Finance data "
+            "access raises audit and reporting review needs."
         ),
     )
 
 
-def build_forensics_finding(incident: IncidentState, compliance_handle: str) -> AgentFinding:
+def build_forensics_finding(
+    incident: IncidentState,
+    compliance_handle: str,
+) -> AgentFinding:
     return AgentFinding(
         agent="forensics",
         status="complete",
@@ -143,13 +164,17 @@ def build_forensics_finding(incident: IncidentState, compliance_handle: str) -> 
             "Preserve endpoint image and proxy logs.",
         ],
         band_message=(
-            f"{compliance_handle} Forensics update for WL-INC-001: evidence supports "
-            "high-risk suspicious activity with possible finance data exposure."
+            f"{band_mention(compliance_handle)} Forensics update for WL-INC-001: "
+            "evidence supports high-risk suspicious activity with possible finance "
+            "data exposure."
         ),
     )
 
 
-def build_compliance_finding(incident: IncidentState, commander_handle: str) -> AgentFinding:
+def build_compliance_finding(
+    incident: IncidentState,
+    commander_handle: str,
+) -> AgentFinding:
     return AgentFinding(
         agent="compliance",
         status="complete",
@@ -175,8 +200,9 @@ def build_compliance_finding(incident: IncidentState, commander_handle: str) -> 
             "Defer external notification until exfiltration scope is confirmed.",
         ],
         band_message=(
-            f"{commander_handle} Compliance update for WL-INC-001: retain evidence, "
-            "escalate internally, and classify as high severity pending scope confirmation."
+            f"{band_mention(commander_handle)} Compliance update for WL-INC-001: "
+            "retain evidence, escalate internally, and classify as high severity "
+            "pending scope confirmation."
         ),
     )
 
@@ -221,4 +247,3 @@ def run_deterministic_workflow(
         build_commander_finding(incident),
     ]
     return findings
-
