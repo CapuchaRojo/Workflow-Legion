@@ -64,6 +64,37 @@ class RemoteAgentProfilesTest(unittest.TestCase):
                     PROOF_STATUS_VALIDATED,
                 )
 
+    def test_runtime_instructions_keep_demo_safe_boundaries(self) -> None:
+        for role_key, profile in REMOTE_AGENT_PROFILES.items():
+            with self.subTest(role_key=role_key):
+                instructions = profile.runtime_instructions.lower()
+                self.assertIn("scope:", instructions)
+                self.assertIn("band as the visible coordination fabric", instructions)
+                self.assertIn("backend owns deterministic workflow runtime", instructions)
+                self.assertIn("provided evidence", instructions)
+                self.assertIn(
+                    "do not make unsupported breach, legal, or medical claims",
+                    instructions,
+                )
+                self.assertIn("handoff target:", instructions)
+
+    def test_runtime_instructions_name_their_handoff_targets(self) -> None:
+        expected_phrases = {
+            "triage": ("threat intel", "forensics"),
+            "threat_intel": ("compliance",),
+            "forensics": ("compliance",),
+            "compliance": ("incident commander",),
+            "commander": ("final_decision",),
+        }
+
+        for role_key, target_phrases in expected_phrases.items():
+            with self.subTest(role_key=role_key):
+                instructions = REMOTE_AGENT_PROFILES[
+                    role_key
+                ].runtime_instructions.lower()
+                for target_phrase in target_phrases:
+                    self.assertIn(target_phrase, instructions)
+
 
 if __name__ == "__main__":
     unittest.main()
