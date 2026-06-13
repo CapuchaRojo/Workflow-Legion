@@ -15,7 +15,7 @@ from app.services.deterministic_agents import (
     build_threat_intel_finding,
     build_triage_finding,
 )
-from app.services.llm_provider_router import ProviderConfig
+from app.services.llm_provider_router import ProviderConfig, resolve_aimlapi_base_url
 
 
 ROLE_ORDER = ("triage", "threat_intel", "forensics", "compliance", "commander")
@@ -313,7 +313,7 @@ def _provider_config_for_role(
         return ProviderConfig(
             name="aimlapi",
             api_key=settings_obj.aiml_api_key or settings_obj.aimlapi_api_key,
-            base_url=settings_obj.aiml_base_url or settings_obj.aimlapi_base_url,
+            base_url=resolve_aimlapi_base_url(settings_obj),
             model=settings_obj.aiml_model or settings_obj.aimlapi_model,
         )
 

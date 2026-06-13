@@ -5,6 +5,9 @@ from pydantic import BaseModel
 from app.core.settings import settings
 
 
+AIMLAPI_DEFAULT_BASE_URL = "https://api.aimlapi.com/v1"
+
+
 class LLMProvider(str, Enum):
     OPENAI = "openai"
     FEATHERLESS = "featherless"
@@ -38,10 +41,7 @@ def get_provider_config(provider: str) -> ProviderConfig:
                 getattr(settings, "aiml_api_key", None)
                 or getattr(settings, "aimlapi_api_key", None)
             ),
-            base_url=(
-                getattr(settings, "aiml_base_url", None)
-                or getattr(settings, "aimlapi_base_url", "https://api.aimlapi.com/v1")
-            ),
+            base_url=resolve_aimlapi_base_url(settings),
             model=(
                 getattr(settings, "aiml_model", None)
                 or getattr(settings, "aimlapi_model", None)
@@ -60,3 +60,17 @@ def get_provider_config(provider: str) -> ProviderConfig:
         api_key=getattr(settings, "openai_api_key", None),
         model=getattr(settings, "openai_model", None),
     )
+
+
+def resolve_aimlapi_base_url(settings_obj=settings) -> str:
+    new_base_url = getattr(settings_obj, "aiml_base_url", None)
+    legacy_base_url = getattr(settings_obj, "aimlapi_base_url", None)
+
+    if (
+        legacy_base_url
+        and legacy_base_url != AIMLAPI_DEFAULT_BASE_URL
+        and (not new_base_url or new_base_url == AIMLAPI_DEFAULT_BASE_URL)
+    ):
+        return legacy_base_url
+
+    return new_base_url or legacy_base_url or AIMLAPI_DEFAULT_BASE_URL

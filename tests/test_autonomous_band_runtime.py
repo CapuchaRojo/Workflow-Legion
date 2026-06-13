@@ -23,6 +23,7 @@ from app.services.autonomous_band_runtime import (  # noqa: E402
     DryRunBandMessenger,
     LiveBandEventSource,
     ScriptedBandEventSource,
+    SentBandMessage,
     build_dry_run_start_event,
     build_runtime_from_settings,
     parse_auto_start,
@@ -36,6 +37,7 @@ from app.services.autonomous_role_agents import (  # noqa: E402
     AutonomousRoleContext,
 )
 from app.services.band_agent_registry import build_band_remote_agent_registry  # noqa: E402
+from app.services.band_client import BandDeliveryResult  # noqa: E402
 from app.services.incident_repository import build_demo_incident  # noqa: E402
 
 
@@ -535,6 +537,72 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             ["triage", "threat_intel", "forensics", "compliance", "commander"],
         )
 
+    def test_failed_triage_band_post_does_not_complete_role(self) -> None:
+        runtime, messenger, start = self._delivery_sequence_runtime([False])
+
+        asyncio.run(runtime.handle_event(start))
+
+        assert runtime.state is not None
+        self.assertNotIn("triage", runtime.state.completed_roles)
+        self.assertNotIn("triage", runtime.state.role_outputs)
+        self.assertEqual(runtime.state.pending_role_message_ids["triage"], ["m-human-start"])
+        self.assertEqual([message.role for message in messenger.sent_messages], ["triage"])
+
+    def test_failed_triage_band_post_does_not_enqueue_downstream_events(self) -> None:
+        runtime, messenger, start = self._delivery_sequence_runtime([False])
+
+        asyncio.run(runtime.handle_event(start))
+        asyncio.run(runtime._drain_internal_events())
+
+        assert runtime.state is not None
+        self.assertEqual([message.role for message in messenger.sent_messages], ["triage"])
+        self.assertEqual(len(runtime._internal_events), 0)
+        self.assertNotIn("threat_intel", runtime.state.processed_message_ids)
+        self.assertNotIn("forensics", runtime.state.processed_message_ids)
+
+    def test_failed_triage_band_post_can_complete_on_later_successful_retry(self) -> None:
+        runtime, messenger, start = self._delivery_sequence_runtime([False, True])
+
+        asyncio.run(runtime.handle_event(start))
+        retry_start = BandMessageEvent(
+            message_id="m-human-start-retry",
+            content=start.content,
+            author_handle=start.author_handle,
+            mention_handles=start.mention_handles,
+        )
+        asyncio.run(runtime.handle_event(retry_start))
+
+        assert runtime.state is not None
+        self.assertEqual(runtime.state.completed_roles, ["triage"])
+        self.assertEqual(
+            [message.delivery.delivered for message in messenger.sent_messages],
+            [False, True],
+        )
+        self.assertEqual(
+            runtime.state.role_outputs["triage"].source_message_ids,
+            ["m-human-start", "m-human-start-retry"],
+        )
+
+    def test_failed_commander_band_post_does_not_complete_runtime(self) -> None:
+        runtime, messenger, start = self._delivery_sequence_runtime(
+            [True, True, True, True, False]
+        )
+
+        asyncio.run(runtime.handle_event(start))
+        asyncio.run(runtime._drain_internal_events())
+
+        assert runtime.state is not None
+        self.assertEqual(
+            runtime.state.completed_roles,
+            ["triage", "threat_intel", "forensics", "compliance"],
+        )
+        self.assertNotEqual(runtime.state.status, "complete")
+        self.assertIsNone(runtime.state.final_decision_state)
+        self.assertEqual(
+            [message.role for message in messenger.sent_messages],
+            ["triage", "threat_intel", "forensics", "compliance", "commander"],
+        )
+
     def test_internal_event_ids_are_processed_once_per_role(self) -> None:
         runtime, _messenger, _source = self._live_internal_queue_runtime(
             run_id="internal-unit"
@@ -656,6 +724,35 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         )
         return runtime, messenger, source
 
+    def _delivery_sequence_runtime(
+        self,
+        delivered_results: list[bool],
+        run_id: str = "delivery-unit",
+    ):
+        settings_obj = self._settings_without_provider_keys()
+        registry = build_band_remote_agent_registry(settings_obj)
+        start = BandMessageEvent(
+            message_id="m-human-start",
+            content=f"@{registry['triage'].handle} AUTO:START WL-INC-001",
+            author_handle="human",
+            mention_handles=(registry["triage"].handle,),
+        )
+        source = _PollingSequenceLiveBandEventSource([[start]])
+        messenger = _SequencedDeliveryBandMessenger(registry, delivered_results)
+        runtime = AutonomousBandRuntime(
+            registry=registry,
+            event_source=source,
+            messenger=messenger,
+            reasoning_provider=AutonomousReasoningProvider(
+                provider_mode="deterministic",
+                settings_obj=settings_obj,
+            ),
+            state_store=AutonomousStateStore(tempfile.mkdtemp()),
+            run_id=run_id,
+            settings_obj=settings_obj,
+        )
+        return runtime, messenger, start
+
     def _settings_without_provider_keys(self) -> Settings:
         return Settings(
             band_api_key=None,
@@ -726,6 +823,37 @@ class _PollingSequenceLiveBandEventSource(LiveBandEventSource):
         if not self._batches:
             return []
         return self._batches.pop(0)
+
+
+class _SequencedDeliveryBandMessenger:
+    def __init__(
+        self,
+        registry,
+        delivered_results: list[bool],
+    ) -> None:
+        self.registry = registry
+        self.delivered_results = list(delivered_results)
+        self.sent_messages: list[SentBandMessage] = []
+
+    async def send_role_output(self, role, output) -> SentBandMessage:
+        delivered = self.delivered_results.pop(0)
+        message = SentBandMessage(
+            message_id=f"sequenced-{len(self.sent_messages) + 1}-{role}",
+            role=role,
+            content=output.band_message,
+            mention_handles=tuple(
+                self.registry[target].handle
+                for target in output.handoff_roles
+                if target in self.registry
+            ),
+            delivery=BandDeliveryResult(
+                delivered=delivered,
+                detail="Sequenced test delivery result.",
+                status_code=200 if delivered else 503,
+            ),
+        )
+        self.sent_messages.append(message)
+        return message
 
 
 if __name__ == "__main__":

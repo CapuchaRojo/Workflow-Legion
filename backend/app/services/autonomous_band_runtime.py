@@ -739,6 +739,9 @@ class AutonomousBandRuntime:
         definition = ROLE_DEFINITIONS[role]
         output = await self.reasoning_provider.decide(definition, context)
         sent_message = await self.messenger.send_role_output(role, output)
+        if not sent_message.delivery.delivered:
+            self.state_store.save(self.state)
+            return
 
         self.state.complete_role(
             RoleOutputRecord(
