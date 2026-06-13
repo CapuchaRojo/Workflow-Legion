@@ -21,9 +21,15 @@ class AgentMockOutputTests(unittest.TestCase):
             self.assertEqual(first.incident_id, DEMO_INCIDENT_ID)
             self.assertEqual(first.agent_id, agent_id)
             self.assertEqual(first.status, "completed")
+            self.assertEqual(first.severity, "high")
+            self.assertGreater(first.confidence, 0)
+            self.assertLessEqual(first.confidence, 1)
             self.assertEqual(first.mode, "deterministic_mock")
             self.assertTrue(first.band_message)
             self.assertTrue(first.summary)
+            self.assertTrue(first.findings)
+            self.assertTrue(first.evidence)
+            self.assertTrue(first.recommended_actions)
 
     def test_band_handoff_chain_is_explicit(self) -> None:
         triage = get_mock_agent_output("triage")

@@ -46,15 +46,30 @@ Final commander outcome:
 
 The test file tests/test_final_report_output.py validates that:
 
+- all five backend agent findings are present in workflow order
+- every finding has severity, confidence, summary, actions, and a Band message
+- repeated workflow runs produce stable content when timestamps are excluded
 - the report is generated for WL-INC-001
 - severity is high
 - the executive summary references PowerShell, FIN-042, and possible data exposure
 - the commander decision includes containment
-- evidence summary is populated
+- evidence summary contains every evidence item from the agent findings
 - timeline summary is populated
-- compliance notes are populated
-- recommended actions include containment, credential reset, and evidence preservation
+- compliance notes exactly match the Compliance finding actions
+- recommended actions contain every unique action from the five findings
 - the completed incident state stores five findings and the final report
+
+The test file tests/test_agent_mock_outputs.py also validates that every
+standalone deterministic agent output has high severity, bounded confidence,
+findings, evidence, recommended actions, and a Band-ready message.
+
+Run the validation suite with:
+
+```bash
+source env/bin/activate
+python -m unittest discover -s tests -v
+deactivate
+```
 
 ## Demo Positioning
 

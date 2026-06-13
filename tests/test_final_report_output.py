@@ -18,6 +18,43 @@ from app.services.incident_repository import (  # noqa: E402
 
 
 class FinalReportOutputTests(unittest.TestCase):
+    def test_all_five_backend_findings_are_complete_and_deterministic(self) -> None:
+        incident = build_demo_incident()
+        handles = {
+            "threat_handle": "@ThreatIntelAgent",
+            "forensics_handle": "@ForensicsAgent",
+            "compliance_handle": "@ComplianceAgent",
+            "commander_handle": "@IncidentCommanderAgent",
+        }
+        findings = run_deterministic_workflow(incident, **handles)
+        repeated_findings = run_deterministic_workflow(
+            build_demo_incident(),
+            **handles,
+        )
+
+        self.assertEqual(
+            [finding.agent for finding in findings],
+            ["triage", "threat_intel", "forensics", "compliance", "commander"],
+        )
+
+        for finding in findings:
+            with self.subTest(agent=finding.agent):
+                self.assertEqual(finding.status, "complete")
+                self.assertEqual(finding.severity, "high")
+                self.assertIn(finding.confidence, {"medium", "high"})
+                self.assertTrue(finding.summary)
+                self.assertTrue(finding.recommended_actions)
+                self.assertTrue(finding.band_message)
+
+        normalized = [
+            finding.model_dump(exclude={"created_at"}) for finding in findings
+        ]
+        repeated_normalized = [
+            finding.model_dump(exclude={"created_at"})
+            for finding in repeated_findings
+        ]
+        self.assertEqual(normalized, repeated_normalized)
+
     def test_final_report_contains_required_submission_sections(self) -> None:
         incident = build_demo_incident()
         findings = run_deterministic_workflow(
@@ -68,6 +105,42 @@ class FinalReportOutputTests(unittest.TestCase):
         self.assertIn(
             "Preserve endpoint, identity, file, and network evidence.",
             report.recommended_actions,
+        )
+
+    def test_final_report_aggregates_all_evidence_and_actions(self) -> None:
+        incident = build_demo_incident()
+        findings = run_deterministic_workflow(
+            incident,
+            threat_handle="@ThreatIntelAgent",
+            forensics_handle="@ForensicsAgent",
+            compliance_handle="@ComplianceAgent",
+            commander_handle="@IncidentCommanderAgent",
+        )
+        report = build_final_report(incident, findings)
+
+        expected_evidence = [
+            f"{evidence.evidence_id}: {evidence.summary}"
+            for finding in findings
+            for evidence in finding.evidence
+        ]
+        expected_actions = list(
+            dict.fromkeys(
+                action
+                for finding in findings
+                for action in finding.recommended_actions
+            )
+        )
+        compliance_finding = next(
+            finding
+            for finding in findings
+            if finding.agent == "compliance"
+        )
+
+        self.assertEqual(report.evidence_summary, expected_evidence)
+        self.assertEqual(report.recommended_actions, expected_actions)
+        self.assertEqual(
+            report.compliance_notes,
+            compliance_finding.recommended_actions,
         )
 
     def test_final_report_is_stored_on_completed_incident_state(self) -> None:
