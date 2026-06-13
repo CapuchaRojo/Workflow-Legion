@@ -1,8 +1,11 @@
 import asyncio
+import io
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -25,6 +28,7 @@ from app.services.autonomous_band_runtime import (  # noqa: E402
     parse_auto_start,
     parse_run_marker,
 )
+import run_autonomous_agents  # noqa: E402
 from run_autonomous_agents import parse_args  # noqa: E402
 from app.services.autonomous_role_agents import (  # noqa: E402
     ROLE_DEFINITIONS,
@@ -56,6 +60,44 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         asyncio.run(runtime.handle_event(event))
 
         self.assertIsNone(runtime.state)
+
+    def test_display_name_mention_starts_triage(self) -> None:
+        runtime = self._runtime_with_empty_source()
+        event = BandMessageEvent(
+            message_id="m-display-start",
+            content="@Workflow Triage Remote Agent AUTO:START WL-INC-001",
+            author_handle="human",
+        )
+
+        asyncio.run(runtime.handle_event(event))
+
+        self.assertIsNotNone(runtime.state)
+        self.assertEqual(runtime.state.completed_roles, ["triage"])
+
+    def test_structured_mention_metadata_starts_triage(self) -> None:
+        runtime = self._runtime_with_empty_source()
+        event = BandMessageEvent(
+            message_id="m-structured-start",
+            content="AUTO:START WL-INC-001",
+            author_handle="human",
+            mention_metadata=({"name": "Workflow Triage Remote Agent"},),
+        )
+
+        asyncio.run(runtime.handle_event(event))
+
+        self.assertIsNotNone(runtime.state)
+        self.assertEqual(runtime.state.completed_roles, ["triage"])
+
+    def test_raw_handle_mention_matching_still_works(self) -> None:
+        runtime = self._runtime_with_empty_source()
+        triage_handle = runtime.registry["triage"].handle
+        event = BandMessageEvent(
+            message_id="m-raw-handle",
+            content=f"@{triage_handle} AUTO:START WL-INC-001",
+            author_handle="human",
+        )
+
+        self.assertTrue(runtime._event_mentions_role(event, "triage"))
 
     def test_role_routing_and_handoff_targets_follow_band_mentions(self) -> None:
         runtime = self._runtime_with_empty_source()
@@ -172,6 +214,34 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self.assertIsNotNone(state.final_decision_state)
         self.assertEqual(state.role_outputs["commander"].handoff_roles, [])
 
+    def test_dump_recent_messages_does_not_send_agent_replies(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        registry = build_band_remote_agent_registry(settings_obj)
+        source = ScriptedBandEventSource(
+            [build_dry_run_start_event(registry, "WL-INC-001")]
+        )
+        messenger = DryRunBandMessenger(registry)
+        runtime = AutonomousBandRuntime(
+            registry=registry,
+            event_source=source,
+            messenger=messenger,
+            reasoning_provider=AutonomousReasoningProvider(
+                provider_mode="deterministic",
+                settings_obj=settings_obj,
+            ),
+            state_store=AutonomousStateStore(tempfile.mkdtemp()),
+            settings_obj=settings_obj,
+        )
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            events = asyncio.run(runtime.dump_recent_messages(message_limit=5))
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(messenger.sent_messages, [])
+        self.assertIsNone(runtime.state)
+        self.assertIn("matched_roles=triage", output.getvalue())
+
     def test_dry_run_autonomous_chain_completes(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             runtime = build_runtime_from_settings(
@@ -245,6 +315,10 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
                 "manual-run",
                 "--no-stop-after-complete",
                 "--once",
+                "--debug-receive",
+                "--dump-recent-messages",
+                "--message-limit",
+                "9",
             ]
         )
 
@@ -252,6 +326,9 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self.assertEqual(args.run_id, "manual-run")
         self.assertFalse(args.stop_after_complete)
         self.assertTrue(args.single_pass)
+        self.assertTrue(args.debug_receive)
+        self.assertTrue(args.dump_recent_messages)
+        self.assertEqual(args.message_limit, 9)
 
     def test_live_runtime_receives_poll_interval_and_single_pass(self) -> None:
         settings_obj = self._settings_without_provider_keys()
@@ -262,6 +339,7 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             dry_run=False,
             poll_interval_seconds=6.0,
             single_pass=True,
+            message_limit=9,
             settings_obj=settings_obj,
         )
 
@@ -269,6 +347,22 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         assert isinstance(runtime.event_source, LiveBandEventSource)
         self.assertEqual(runtime.event_source.poll_interval_seconds, 6.0)
         self.assertTrue(runtime.event_source.single_pass)
+        self.assertEqual(runtime.event_source.message_limit, 9)
+
+    def test_cancelled_cli_path_exits_cleanly(self) -> None:
+        async def cancelled_main(argv=None):
+            raise asyncio.CancelledError()
+
+        output = io.StringIO()
+        with patch.object(run_autonomous_agents, "main", cancelled_main):
+            with redirect_stdout(output):
+                exit_code = run_autonomous_agents.run_cli([])
+
+        self.assertEqual(exit_code, 130)
+        self.assertIn(
+            "Autonomous runtime stopped by operator.",
+            output.getvalue(),
+        )
 
     def test_max_turns_safety_still_stops_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:

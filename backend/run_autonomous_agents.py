@@ -72,11 +72,30 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Process currently available live Band messages once, then exit.",
     )
+    parser.add_argument(
+        "--debug-receive",
+        action="store_true",
+        help="Print safe live receive diagnostics without exposing credentials.",
+    )
+    parser.add_argument(
+        "--dump-recent-messages",
+        action="store_true",
+        help=(
+            "Fetch one recent Band message batch, print safe summaries, and exit "
+            "without posting agent replies."
+        ),
+    )
+    parser.add_argument(
+        "--message-limit",
+        type=int,
+        default=5,
+        help="Maximum recent Band messages to fetch per receive poll.",
+    )
     return parser.parse_args(argv)
 
 
-async def main() -> int:
-    args = parse_args()
+async def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     runtime = build_runtime_from_settings(
         dry_run=args.dry_run,
         incident_id=args.incident,
@@ -86,7 +105,18 @@ async def main() -> int:
         run_id=args.run_id,
         stop_after_complete=args.stop_after_complete,
         single_pass=args.single_pass,
+        message_limit=args.message_limit,
     )
+    runtime.enable_receive_debug(args.debug_receive)
+
+    if args.debug_receive:
+        runtime.print_startup_receive_diagnostics()
+
+    if args.dump_recent_messages:
+        if not args.single_pass:
+            print("Dump mode is read-only and uses one receive batch.")
+        await runtime.dump_recent_messages(message_limit=args.message_limit)
+        return 0
 
     if args.dry_run:
         print(
@@ -123,6 +153,14 @@ async def main() -> int:
     return 0 if state.status == "complete" else 1
 
 
+def run_cli(argv: Sequence[str] | None = None) -> int:
+    try:
+        return asyncio.run(main(argv))
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("Autonomous runtime stopped by operator.")
+        return 130
+
+
 def _display_role(role: str) -> str:
     if role not in ROLE_DEFINITIONS:
         return role
@@ -130,4 +168,4 @@ def _display_role(role: str) -> str:
 
 
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main()))
+    raise SystemExit(run_cli())

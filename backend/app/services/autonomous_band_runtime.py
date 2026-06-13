@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import re
 from collections import deque
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 from uuid import uuid4
@@ -31,12 +31,9 @@ from app.services.band_agent_registry import (
     build_band_remote_agent_registry,
 )
 from app.services.band_client import (
-    BandClient,
     BandConfigurationError,
     BandDeliveryResult,
     extract_mention_handles,
-    normalize_mention_handle,
-    normalize_mention_handles,
 )
 from app.services.incident_repository import incident_repository
 
@@ -45,6 +42,24 @@ AUTO_START_PATTERN = re.compile(r"\bAUTO:START\s+([A-Za-z0-9_.-]+)\b", re.IGNORE
 RUN_MARKER_PATTERN = re.compile(
     r"\[WL-AUTO:(?P<incident>[A-Za-z0-9_.-]+):(?P<role>[a-z_]+):(?P<run>[A-Za-z0-9_.-]+)\]"
 )
+MENTION_METADATA_FIELDS = (
+    "handle",
+    "name",
+    "display_name",
+    "displayName",
+    "text",
+    "label",
+    "mention",
+    "value",
+)
+MENTION_METADATA_PRINT_FIELDS = (
+    "handle",
+    "name",
+    "display_name",
+    "displayName",
+    "text",
+    "label",
+)
 
 
 @dataclass(frozen=True)
@@ -52,7 +67,10 @@ class BandMessageEvent:
     message_id: str
     content: str
     author_handle: str | None = None
+    author_display: str | None = None
+    created_at: str | None = None
     mention_handles: tuple[str, ...] = ()
+    mention_metadata: tuple[dict[str, str], ...] = ()
     chat_id: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
 
@@ -60,7 +78,12 @@ class BandMessageEvent:
     def normalized_mentions(self) -> tuple[str, ...]:
         handles = list(self.mention_handles)
         handles.extend(extract_mention_handles(self.content))
-        return tuple(normalize_mention_handles(handles))
+        for mention in self.mention_metadata:
+            for field_name in MENTION_METADATA_FIELDS:
+                value = mention.get(field_name)
+                if value:
+                    handles.append(value)
+        return tuple(_normalize_mention_candidates(handles))
 
 
 @dataclass(frozen=True)
@@ -132,17 +155,24 @@ class LiveBandEventSource:
         agent_api_key: str,
         poll_interval_seconds: float = 5.0,
         single_pass: bool = False,
+        message_limit: int = 5,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.chat_id = chat_id
         self.agent_api_key = agent_api_key
         self.poll_interval_seconds = poll_interval_seconds
         self.single_pass = single_pass
+        self.message_limit = max(1, message_limit)
+        self.debug_callback: Callable[[list[BandMessageEvent]], None] | None = None
         self._seen_message_ids: set[str] = set()
 
     async def events(self) -> AsyncIterator[BandMessageEvent]:
         while True:
-            for event in await self._poll_once():
+            polled_events = await self.poll_once()
+            if self.debug_callback:
+                self.debug_callback(polled_events)
+
+            for event in polled_events:
                 if event.message_id in self._seen_message_ids:
                     continue
                 self._seen_message_ids.add(event.message_id)
@@ -160,19 +190,22 @@ class LiveBandEventSource:
     ) -> None:
         return None
 
-    async def _poll_once(self) -> list[BandMessageEvent]:
+    async def poll_once(self) -> list[BandMessageEvent]:
         headers = {"X-API-Key": self.agent_api_key}
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.get(
                 f"{self.base_url}/agent/chats/{self.chat_id}/messages",
                 headers=headers,
-                params={"limit": 50},
+                params={"limit": self.message_limit},
             )
 
         response.raise_for_status()
         payload = response.json()
         messages = _extract_message_list(payload)
         return [_event_from_band_payload(message, self.chat_id) for message in messages]
+
+    async def _poll_once(self) -> list[BandMessageEvent]:
+        return await self.poll_once()
 
 
 class DryRunBandMessenger:
@@ -273,6 +306,116 @@ class AutonomousBandRuntime:
         self.run_id = run_id
         self.stop_after_complete = stop_after_complete
         self.settings = settings_obj
+        self.debug_receive = False
+
+    def enable_receive_debug(self, enabled: bool = True) -> None:
+        self.debug_receive = enabled
+        if isinstance(self.event_source, LiveBandEventSource):
+            self.event_source.debug_callback = (
+                self.print_receive_diagnostics if enabled else None
+            )
+
+    def print_startup_receive_diagnostics(self) -> None:
+        receive_key = _live_receive_api_key(self.settings, self.registry)
+        poll_interval = getattr(self.event_source, "poll_interval_seconds", None)
+        message_limit = getattr(self.event_source, "message_limit", None)
+        print(
+            "[debug-receive] config "
+            f"band_chat_configured={bool(self.settings.band_chat_id)} "
+            f"band_room_configured={bool(self.settings.band_room_id)} "
+            f"receive_key_configured={bool(receive_key)}"
+        )
+        print(
+            "[debug-receive] "
+            f"active_event_source={type(self.event_source).__name__} "
+            f"poll_interval={poll_interval if poll_interval is not None else 'n/a'} "
+            f"message_limit={message_limit if message_limit is not None else 'n/a'} "
+            f"run_id={self.run_id or 'pending'}"
+        )
+
+    def print_receive_diagnostics(self, events: list[BandMessageEvent]) -> None:
+        print(f"[debug-receive] received_message_count={len(events)}")
+        for event in events:
+            diagnosis = self.diagnose_event_match(event)
+            author = _safe_author_summary(event)
+            mentions = _safe_mention_metadata_summary(event)
+            print(
+                "[debug-receive] "
+                f"message_id={event.message_id} "
+                f"author={author} "
+                f"created_at={event.created_at or 'unknown'}"
+            )
+            print(
+                "[debug-receive] "
+                f"content_preview={_preview_text(event.content, 180)!r}"
+            )
+            if mentions:
+                print(f"[debug-receive] mention_metadata={mentions}")
+            if diagnosis["matched"]:
+                print(
+                    "[debug-receive] "
+                    "matched_any_role=True "
+                    f"matched_roles={', '.join(diagnosis['roles'])}"
+                )
+            else:
+                print(
+                    "[debug-receive] "
+                    f"matched_any_role=False not_matched={diagnosis['reason']}"
+                )
+
+    async def dump_recent_messages(
+        self,
+        message_limit: int = 5,
+    ) -> list[BandMessageEvent]:
+        events = await self._read_recent_events(message_limit)
+        self.print_receive_diagnostics(events)
+        return events
+
+    async def _read_recent_events(
+        self,
+        message_limit: int,
+    ) -> list[BandMessageEvent]:
+        if isinstance(self.event_source, LiveBandEventSource):
+            original_limit = self.event_source.message_limit
+            self.event_source.message_limit = max(1, message_limit)
+            try:
+                return await self.event_source.poll_once()
+            finally:
+                self.event_source.message_limit = original_limit
+
+        events: list[BandMessageEvent] = []
+        async for event in self.event_source.events():
+            events.append(event)
+            if len(events) >= max(1, message_limit):
+                break
+        return events
+
+    def diagnose_event_match(self, event: BandMessageEvent) -> dict[str, Any]:
+        matched_roles: list[str] = []
+        mentioned_non_matches: list[str] = []
+
+        for role in ROLE_DEFINITIONS:
+            reason = self._role_event_non_match_reason(event, role)
+            if reason is None:
+                matched_roles.append(role)
+            elif self._event_mentions_role(event, role):
+                mentioned_non_matches.append(reason)
+
+        if matched_roles:
+            return {"matched": True, "roles": matched_roles, "reason": None}
+
+        if mentioned_non_matches:
+            return {
+                "matched": False,
+                "roles": [],
+                "reason": "; ".join(dict.fromkeys(mentioned_non_matches)),
+            }
+
+        return {
+            "matched": False,
+            "roles": [],
+            "reason": "no recognized role mention",
+        }
 
     async def run_until_complete(self) -> AutonomousRunState:
         async for event in self.event_source.events():
@@ -337,27 +480,65 @@ class AutonomousBandRuntime:
 
         roles: list[str] = []
         for role in ROLE_DEFINITIONS:
-            if not self._event_mentions_role(event, role):
-                continue
-            if role == "triage" and parse_auto_start(event.content) != self.state.incident_id:
-                continue
-            if role != "triage" and not self._event_matches_run(event):
-                continue
-            roles.append(role)
+            if self._role_event_non_match_reason(event, role) is None:
+                roles.append(role)
 
         return roles
 
     def _event_mentions_role(self, event: BandMessageEvent, role: str) -> bool:
-        expected = normalize_mention_handle(self.registry[role].handle)
-        return expected in event.normalized_mentions
+        aliases = set(self._role_mention_aliases(role))
+        if aliases.intersection(event.normalized_mentions):
+            return True
+        return _content_has_visible_role_mention(event.content, aliases)
+
+    def _role_mention_aliases(self, role: str) -> tuple[str, ...]:
+        agent = self.registry[role]
+        definition = ROLE_DEFINITIONS[role]
+        role_label = role.replace("_", " ")
+        aliases = [
+            agent.handle,
+            f"@{agent.handle}",
+            agent.display_name,
+            f"@{agent.display_name}",
+            definition.display_name,
+            f"@{definition.display_name}",
+            role_label,
+            f"{role_label} agent",
+        ]
+        return tuple(_normalize_mention_candidates(aliases))
+
+    def _role_event_non_match_reason(
+        self,
+        event: BandMessageEvent,
+        role: str,
+    ) -> str | None:
+        if not self._event_mentions_role(event, role):
+            return f"no recognized mention for {role}"
+        if self._authored_by_role(event, role):
+            return f"message was authored by {role}"
+
+        if role == "triage":
+            incident_id = parse_auto_start(event.content)
+            if not incident_id:
+                return "triage mention did not include AUTO:START incident token"
+            if self.state and incident_id != self.state.incident_id:
+                return "AUTO:START incident did not match active incident"
+            return None
+
+        if self.state is None:
+            return "no active run state yet"
+        if not self._event_matches_run(event):
+            return "run marker missing or mismatched"
+        return None
 
     def _authored_by_role(self, event: BandMessageEvent, role: str) -> bool:
-        if not event.author_handle:
-            return False
-
-        author = normalize_mention_handle(event.author_handle)
-        role_handle = normalize_mention_handle(self.registry[role].handle)
-        return author == role_handle
+        aliases = set(self._role_mention_aliases(role))
+        author_values = [event.author_handle, event.author_display]
+        return any(
+            _normalize_mention_candidate(value) in aliases
+            for value in author_values
+            if value
+        )
 
     def _event_matches_run(self, event: BandMessageEvent) -> bool:
         assert self.state is not None
@@ -460,6 +641,7 @@ def build_runtime_from_settings(
     run_id: str | None = None,
     stop_after_complete: bool = True,
     single_pass: bool = False,
+    message_limit: int = 5,
     settings_obj: Settings = settings,
 ) -> AutonomousBandRuntime:
     registry = build_band_remote_agent_registry(settings_obj)
@@ -514,6 +696,7 @@ def build_runtime_from_settings(
             agent_api_key=receive_key,
             poll_interval_seconds=poll_interval_seconds,
             single_pass=single_pass,
+            message_limit=message_limit,
         ),
         messenger=LiveBandMessenger(settings_obj, registry),
         reasoning_provider=reasoning_provider,
@@ -564,31 +747,94 @@ def _event_from_band_payload(
     chat_id: str,
 ) -> BandMessageEvent:
     message = payload.get("message") if isinstance(payload.get("message"), dict) else payload
-    content = str(message.get("content", ""))
-    mentions = message.get("mentions") or payload.get("mentions") or []
-    mention_handles = []
-    if isinstance(mentions, list):
-        for mention in mentions:
-            if isinstance(mention, dict) and mention.get("handle"):
-                mention_handles.append(str(mention["handle"]))
+    content = str(_first_value(message, "content", "text", "body") or "")
+    mention_metadata = tuple(_extract_mention_metadata(message, payload))
+    mention_handles = [
+        mention["handle"]
+        for mention in mention_metadata
+        if mention.get("handle")
+    ]
 
     author = (
-        _nested_value(message, "author", "handle")
+        _first_value(message, "author_handle", "authorHandle", "sender_handle")
+        or _nested_value(message, "author", "handle")
         or _nested_value(message, "sender", "handle")
         or _nested_value(message, "agent", "handle")
+        or _first_value(payload, "author_handle", "authorHandle", "sender_handle")
         or _nested_value(payload, "author", "handle")
         or _nested_value(payload, "sender", "handle")
         or _nested_value(payload, "agent", "handle")
     )
+    author_display = (
+        _first_value(message, "author_name", "authorName", "sender_name")
+        or _nested_first_value(message, "author", "name", "display_name", "displayName")
+        or _nested_first_value(message, "sender", "name", "display_name", "displayName")
+        or _nested_first_value(message, "agent", "name", "display_name", "displayName")
+        or _first_value(payload, "author_name", "authorName", "sender_name")
+        or _nested_first_value(payload, "author", "name", "display_name", "displayName")
+        or _nested_first_value(payload, "sender", "name", "display_name", "displayName")
+        or _nested_first_value(payload, "agent", "name", "display_name", "displayName")
+    )
+    created_at = (
+        _first_value(message, "created_at", "createdAt", "timestamp", "time")
+        or _first_value(payload, "created_at", "createdAt", "timestamp", "time")
+    )
 
     return BandMessageEvent(
-        message_id=str(message.get("id") or payload.get("id") or uuid4().hex),
+        message_id=str(
+            _first_value(message, "id", "message_id", "messageId")
+            or _first_value(payload, "id", "message_id", "messageId")
+            or uuid4().hex
+        ),
         content=content,
         author_handle=str(author) if author else None,
+        author_display=str(author_display) if author_display else None,
+        created_at=str(created_at) if created_at else None,
         mention_handles=tuple(mention_handles),
+        mention_metadata=mention_metadata,
         chat_id=chat_id,
         raw=payload,
     )
+
+
+def _extract_mention_metadata(
+    message: dict[str, Any],
+    payload: dict[str, Any],
+) -> list[dict[str, str]]:
+    mentions = message.get("mentions") or payload.get("mentions") or []
+    safe_mentions: list[dict[str, str]] = []
+
+    if not isinstance(mentions, list):
+        return safe_mentions
+
+    for mention in mentions:
+        if not isinstance(mention, dict):
+            continue
+
+        safe: dict[str, str] = {}
+        for field_name in MENTION_METADATA_FIELDS:
+            value = mention.get(field_name)
+            if value is not None and str(value).strip():
+                safe[field_name] = str(value)
+
+        for nested_key in ("user", "agent", "participant"):
+            nested = mention.get(nested_key)
+            if not isinstance(nested, dict):
+                continue
+            for source_key, target_key in (
+                ("handle", "handle"),
+                ("name", "name"),
+                ("display_name", "display_name"),
+                ("displayName", "displayName"),
+            ):
+                value = nested.get(source_key)
+                if value is not None and str(value).strip():
+                    safe.setdefault(target_key, str(value))
+
+        if safe:
+            safe_mentions.append(safe)
+
+    return safe_mentions
 
 
 def _nested_value(payload: dict[str, Any], key: str, nested_key: str) -> Any:
@@ -596,3 +842,99 @@ def _nested_value(payload: dict[str, Any], key: str, nested_key: str) -> Any:
     if isinstance(value, dict):
         return value.get(nested_key)
     return None
+
+
+def _nested_first_value(
+    payload: dict[str, Any],
+    key: str,
+    *nested_keys: str,
+) -> Any:
+    value = payload.get(key)
+    if not isinstance(value, dict):
+        return None
+    return _first_value(value, *nested_keys)
+
+
+def _first_value(payload: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = payload.get(key)
+        if value is not None and str(value).strip():
+            return value
+    return None
+
+
+def _normalize_mention_candidates(values: list[str] | tuple[str, ...]) -> list[str]:
+    normalized: list[str] = []
+
+    for value in values:
+        clean = _normalize_mention_candidate(value)
+        if clean and clean not in normalized:
+            normalized.append(clean)
+
+    return normalized
+
+
+def _normalize_mention_candidate(value: str) -> str:
+    clean = str(value).strip().removeprefix("@").strip().lower()
+    return re.sub(r"\s+", " ", clean)
+
+
+def _content_has_visible_role_mention(content: str, aliases: set[str]) -> bool:
+    normalized_content = re.sub(r"\s+", " ", content.strip().lower())
+
+    for alias in aliases:
+        escaped = re.escape(alias)
+        if re.search(
+            rf"(?<![A-Za-z0-9_.\-/])@{escaped}(?![A-Za-z0-9_.\-/])",
+            normalized_content,
+        ):
+            return True
+        if " " in alias and re.match(
+            rf"^{escaped}(?![A-Za-z0-9_.\-/])",
+            normalized_content,
+        ):
+            return True
+
+    return False
+
+
+def _safe_author_summary(event: BandMessageEvent) -> str:
+    parts = []
+    if event.author_display:
+        parts.append(f"display={_preview_text(event.author_display, 80)}")
+    if event.author_handle:
+        parts.append(f"handle={_preview_text(event.author_handle, 80)}")
+    return ", ".join(parts) if parts else "unknown"
+
+
+def _safe_mention_metadata_summary(event: BandMessageEvent) -> str | None:
+    if not event.mention_metadata:
+        return None
+
+    summaries: list[str] = []
+    for mention in event.mention_metadata:
+        fields = []
+        for field_name in MENTION_METADATA_PRINT_FIELDS:
+            value = mention.get(field_name)
+            if value:
+                fields.append(f"{field_name}={_preview_text(value, 80)}")
+        summaries.append("{" + ", ".join(fields) + "}" if fields else "{fields_present}")
+
+    return f"count={len(event.mention_metadata)} " + " ".join(summaries)
+
+
+def _preview_text(value: str, max_chars: int) -> str:
+    redacted = re.sub(
+        r"(?i)\b(api[_-]?key|token|authorization)\s*[:=]\s*\S+",
+        r"\1=[REDACTED]",
+        str(value),
+    )
+    redacted = re.sub(
+        r"(?i)\bbearer\s+[A-Za-z0-9._\-/]+",
+        "Bearer [REDACTED]",
+        redacted,
+    )
+    clean = re.sub(r"\s+", " ", redacted).strip()
+    if len(clean) <= max_chars:
+        return clean
+    return clean[: max_chars - 3] + "..."

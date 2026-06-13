@@ -129,6 +129,9 @@ Useful live safety flags:
 --run-id operator-check-001
 --stop-after-complete
 --once
+--debug-receive
+--dump-recent-messages
+--message-limit 5
 ```
 
 `--poll-interval` controls seconds between live Band receive polls. The default
@@ -143,6 +146,15 @@ the current run completes.
 
 `--once` / `--single-pass` processes currently available live Band messages once,
 then exits. This is useful for safe diagnostics before a full live loop.
+
+Read-only receive diagnostic:
+
+```powershell
+backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --once --dump-recent-messages --debug-receive
+```
+
+Dump mode fetches one recent message batch, prints safe summaries, and exits
+without posting agent replies.
 
 Then post exactly one Band room message:
 
