@@ -144,6 +144,113 @@ Supabase Postgres or SQLite — optional persistence layer
 Native.Builder / NativelyAI — showcase and productization layer
 AI/ML API — optional model-provider support path
 Featherless — optional open-model provider support path
+
+## Architecture
+
+Workflow Legion uses Band as its core collaboration fabric. The system context diagram below shows how the frontend showcase, backend runtime, five specialized incident response agents, and external services connect through the Band coordination layer. The sequence diagram that follows illustrates the WL-INC-001 incident flow, where agents hand off work through Band @mention routing, and the backend queue wakes downstream agents after Band receive events.
+
+```mermaid
+graph TB
+
+    HumanOp(["Human Operator"])
+
+    subgraph FrontendG["Frontend"]
+        FrontendApp["Frontend Showcase (React/Vite + TypeScript)"]
+    end
+
+    subgraph BackendG["Backend"]
+        BackendRun["Backend Runtime (FastAPI + Python)"]
+    end
+
+    BandRoom["Band Room"]
+
+    subgraph AgentsG["Agents"]
+        TriageAg["Triage Agent"]
+        ThreatAg["Threat Intel Agent"]
+        ForenAg["Forensics Agent"]
+        ComplAg["Compliance Agent"]
+        CommdrAg["Incident Commander Agent"]
+    end
+
+    subgraph ExternalG["External Services"]
+        DBStore[("SQLite / Postgres")]
+        RedisQueue[("Redis + ARQ")]
+        AIMLAPI["AI/ML API"]
+        Featherless["Featherless"]
+    end
+
+    HumanOp -->|triggers incident| BandRoom
+    BandRoom -->|dispatches to| BackendRun
+    BackendRun -->|posts messages| BandRoom
+    BandRoom <-->|mentions| TriageAg
+    BandRoom <-->|mentions| ThreatAg
+    BandRoom <-->|mentions| ForenAg
+    BandRoom <-->|mentions| ComplAg
+    BandRoom <-->|mentions| CommdrAg
+    FrontendApp -->|polls status| BackendRun
+    TriageAg -->|store findings| DBStore
+    BackendRun -->|queue tasks| RedisQueue
+    BackendRun -->|read/write| DBStore
+    BackendRun -->|LLM inference| AIMLAPI
+    BackendRun -->|LLM inference| Featherless
+
+    style HumanOp fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000000
+    style FrontendApp fill:#bbdefb,stroke:#0d47a1,stroke-width:2px,color:#000000
+    style BackendRun fill:#c8e6c9,stroke:#1b5e20,stroke-width:2px,color:#000000
+    style BandRoom fill:#ffccbc,stroke:#bf360c,stroke-width:3px,color:#000000
+    style TriageAg fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000000
+    style ThreatAg fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000000
+    style ForenAg fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000000
+    style ComplAg fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000000
+    style CommdrAg fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000000
+    style DBStore fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000000
+    style RedisQueue fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000000
+    style AIMLAPI fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000000
+    style Featherless fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000000
+```
+
+```mermaid
+sequenceDiagram
+    participant Human as Human Operator
+    participant Band as Band Room
+    participant Triage as Triage Agent
+    participant ThreatIntel as Threat Intel Agent
+    participant Forensics as Forensics Agent
+    participant Compliance as Compliance Agent
+    participant Commander as Incident Commander Agent
+
+    Note over Band,Commander: Backend queue wakes downstream agents after Band receive events.
+
+    Human->>Band: @triage AUTO:START WL-INC-001
+    activate Band
+    Band->>Triage: Route @triage mention
+    activate Triage
+    Triage->>Triage: Classify incident, identify severity/host/user
+    Triage->>Band: Post findings with @threatintel + @forensics
+    deactivate Triage
+    Band->>ThreatIntel: Route @threatintel mention
+    activate ThreatIntel
+    ThreatIntel->>ThreatIntel: Enrich IOCs, assess threat behavior
+    ThreatIntel->>Band: Post enrichment with @compliance
+    deactivate ThreatIntel
+    Band->>Forensics: Route @forensics mention
+    activate Forensics
+    Forensics->>Forensics: Build timeline, review evidence
+    Forensics->>Band: Post timeline with @compliance
+    deactivate Forensics
+    Band->>Compliance: Route @compliance mentions
+    activate Compliance
+    Compliance->>Compliance: Deduplicate inputs, assess escalation risk
+    Compliance->>Band: Post compliance review with @commander
+    deactivate Compliance
+    Band->>Commander: Route @commander mention
+    activate Commander
+    Commander->>Commander: Synthesize findings, produce final decision
+    Commander->>Band: Post final incident decision report
+    deactivate Commander
+    deactivate Band
+```
+
 Backend Endpoints
 
 Useful endpoints:
