@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -19,6 +20,8 @@ from app.services.llm_provider_router import ProviderConfig, resolve_aimlapi_bas
 
 
 ROLE_ORDER = ("triage", "threat_intel", "forensics", "compliance", "commander")
+PROVIDER_VALIDATION_ROLES = ("triage", "threat_intel", "forensics")
+MAX_BAND_TASK_POST_CHARS = 600
 UPSTREAM_ROLES = {
     "triage": (),
     "threat_intel": ("triage",),
@@ -26,6 +29,57 @@ UPSTREAM_ROLES = {
     "compliance": ("threat_intel", "forensics"),
     "commander": ("compliance",),
 }
+
+ROLE_LANGUAGE = {
+    "triage": ("triage", "alert", "classif", "severity"),
+    "threat_intel": (
+        "threat intel",
+        "ioc",
+        "indicator",
+        "destination",
+        "hosting",
+    ),
+    "forensics": (
+        "forensic",
+        "timeline",
+        "evidence",
+        "endpoint",
+        "process",
+        "file access",
+        "network",
+    ),
+}
+
+UNSUPPORTED_CLAIM_PATTERNS = (
+    re.compile(
+        r"\bconfirmed\s+(?:data\s+)?"
+        r"(?:breach|exfiltration|compromise|data theft)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?<!if )\b(?:breach|exfiltration|compromise|data theft)\s+"
+        r"(?:is|was|has been)\s+(?:confirmed|proven)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bdata\s+(?:was|has been)\s+(?:stolen|exfiltrated)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:ip|destination|file|executable)\s+\S+\s+"
+        r"(?:is|was)\s+(?:malicious|malware)\b",
+        re.IGNORECASE,
+    ),
+)
+
+SENSITIVE_OUTPUT_PATTERNS = (
+    re.compile(r"\bapi[_ -]?key\s*[:=]", re.IGNORECASE),
+    re.compile(r"\b(?:access|provider|bearer)\s+token\s*[:=]", re.IGNORECASE),
+    re.compile(r"\bsponsor\s+code\s*[:=]", re.IGNORECASE),
+    re.compile(r"\bredemption\s+link\s*[:=]", re.IGNORECASE),
+    re.compile(r"\bqr\s+code\s*[:=]", re.IGNORECASE),
+    re.compile(r"(?:^|\s)\.env(?:\s|$)", re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -206,29 +260,36 @@ class AutonomousReasoningProvider:
         content = response.json()["choices"][0]["message"]["content"]
         parsed = _extract_json_object(content)
 
-        return AutonomousRoleOutput(
+        provider_output = AutonomousRoleOutput(
             role=definition.role,
             provider_name=provider_config.name,
             provider_mode="provider_live",
-            summary=str(parsed.get("summary") or fallback_output.summary),
-            evidence=tuple(
-                str(item)
-                for item in parsed.get("evidence", fallback_output.evidence)
+            summary=_normalize_text(
+                parsed.get("summary"),
+                fallback_output.summary,
             ),
-            recommended_actions=tuple(
-                str(item)
-                for item in parsed.get(
-                    "recommended_actions",
-                    fallback_output.recommended_actions,
-                )
+            evidence=_normalize_text_list(
+                parsed.get("evidence"),
+                fallback_output.evidence,
+            ),
+            recommended_actions=_normalize_text_list(
+                parsed.get("recommended_actions"),
+                fallback_output.recommended_actions,
             ),
             handoff_roles=definition.handoff_targets,
             band_message=_ensure_run_marker_and_mentions(
-                str(parsed.get("band_message") or fallback_output.band_message),
+                _normalize_text(
+                    parsed.get("band_message"),
+                    fallback_output.band_message,
+                ),
                 definition,
                 context,
             ),
         )
+        if provider_output_safety_issues(provider_output, definition, context):
+            return fallback_output
+
+        return provider_output
 
 
 def build_deterministic_role_output(
@@ -330,6 +391,9 @@ def _build_provider_prompt(
         f"- {role}: {summary}"
         for role, summary in sorted(context.upstream_summaries.items())
     )
+    baseline_evidence = "\n".join(
+        f"- {item}" for item in fallback_output.evidence
+    )
     return (
         f"Incident: {incident.incident_id}\n"
         f"Host: {incident.affected_host}\n"
@@ -342,8 +406,19 @@ def _build_provider_prompt(
         f"Handoff targets: {', '.join(definition.handoff_targets) or 'none'}\n"
         f"Run marker must be included: "
         f"[WL-AUTO:{incident.incident_id}:{definition.role}:{context.run_id}]\n"
+        "Validation constraints:\n"
+        "- Stay inside the assigned role and do not make Commander, Compliance, "
+        "or legal decisions.\n"
+        "- Use only the incident, upstream, and deterministic baseline evidence "
+        "provided below.\n"
+        "- Treat breach, compromise, and exfiltration as unconfirmed possibilities "
+        "unless the supplied evidence explicitly confirms them.\n"
+        f"- Keep band_message at or below {MAX_BAND_TASK_POST_CHARS} characters.\n"
+        "- Use no more than 5 evidence items and 4 recommended actions.\n"
+        "- Make the Band handoff explicit only to the listed handoff targets.\n"
         f"Upstream context:\n{upstream or '- none'}\n"
-        f"Deterministic baseline:\n{fallback_output.summary}\n"
+        f"Deterministic baseline summary:\n{fallback_output.summary}\n"
+        f"Deterministic baseline evidence:\n{baseline_evidence or '- none'}\n"
     )
 
 
@@ -360,6 +435,170 @@ def _extract_json_object(content: str) -> dict[str, Any]:
         raise ValueError("Provider did not return a JSON object.")
 
     return json.loads(stripped[start : end + 1])
+
+
+def provider_output_safety_issues(
+    output: AutonomousRoleOutput,
+    definition: RoleDefinition,
+    context: AutonomousRoleContext,
+) -> tuple[str, ...]:
+    issues: list[str] = []
+
+    if not output_stays_in_role(output, definition):
+        issues.append("output does not show the assigned role focus")
+    if not output_is_evidence_grounded(output, context):
+        issues.append("one or more claims are not grounded in supplied evidence")
+    if output_has_unsupported_claim(output):
+        issues.append("output makes an unsupported breach or exfiltration claim")
+    if not output_is_safe_for_band(output, definition, context):
+        issues.append("Band post is not concise or runtime-safe")
+    if not output_has_clean_handoff(output, definition, context):
+        issues.append("Band post does not have the expected handoff target")
+    if output.provider_mode == "provider_live":
+        if len(output.summary) > 500:
+            issues.append("summary exceeds 500 characters")
+        if len(output.evidence) > 5:
+            issues.append("evidence exceeds 5 items")
+        if len(output.recommended_actions) > 4:
+            issues.append("recommended actions exceed 4 items")
+
+    return tuple(issues)
+
+
+def output_stays_in_role(
+    output: AutonomousRoleOutput,
+    definition: RoleDefinition,
+) -> bool:
+    if output.role != definition.role:
+        return False
+
+    role_terms = ROLE_LANGUAGE.get(definition.role)
+    if not role_terms:
+        return True
+
+    content = _output_content(output).lower()
+    return any(term in content for term in role_terms)
+
+
+def output_is_evidence_grounded(
+    output: AutonomousRoleOutput,
+    context: AutonomousRoleContext,
+) -> bool:
+    if not output.evidence:
+        return False
+
+    anchors = _evidence_anchors(context)
+    return all(
+        any(anchor in evidence.lower() for anchor in anchors)
+        for evidence in output.evidence
+    )
+
+
+def output_has_unsupported_claim(output: AutonomousRoleOutput) -> bool:
+    content = _output_content(output)
+    return any(pattern.search(content) for pattern in UNSUPPORTED_CLAIM_PATTERNS)
+
+
+def output_is_safe_for_band(
+    output: AutonomousRoleOutput,
+    definition: RoleDefinition,
+    context: AutonomousRoleContext,
+) -> bool:
+    message = output.band_message.strip()
+    marker = (
+        f"[WL-AUTO:{context.incident.incident_id}:"
+        f"{definition.role}:{context.run_id}]"
+    )
+    if not message or len(message) > MAX_BAND_TASK_POST_CHARS:
+        return False
+    if marker not in message:
+        return False
+    if output_has_unsupported_claim(output):
+        return False
+
+    content = _output_content(output)
+    return not any(pattern.search(content) for pattern in SENSITIVE_OUTPUT_PATTERNS)
+
+
+def output_has_clean_handoff(
+    output: AutonomousRoleOutput,
+    definition: RoleDefinition,
+    context: AutonomousRoleContext,
+) -> bool:
+    if output.handoff_roles != definition.handoff_targets:
+        return False
+
+    expected_mentions = {
+        context.handles_by_role[role].strip().removeprefix("@").lower()
+        for role in definition.handoff_targets
+    }
+    configured_mentions = {
+        handle.strip().removeprefix("@").lower()
+        for handle in context.handles_by_role.values()
+    }
+    actual_mentions = {
+        handle
+        for handle in configured_mentions
+        if re.search(
+            rf"(?<![\w/-])@{re.escape(handle)}(?![\w/-])",
+            output.band_message,
+            re.IGNORECASE,
+        )
+    }
+    return actual_mentions == expected_mentions
+
+
+def _normalize_text(value: Any, fallback: str) -> str:
+    if not isinstance(value, str):
+        return fallback
+    normalized = value.strip()
+    return normalized or fallback
+
+
+def _normalize_text_list(
+    value: Any,
+    fallback: tuple[str, ...],
+) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return fallback
+
+    normalized = tuple(
+        item.strip()
+        for item in value
+        if isinstance(item, str) and item.strip()
+    )
+    return normalized or fallback
+
+
+def _output_content(output: AutonomousRoleOutput) -> str:
+    return "\n".join(
+        (
+            output.summary,
+            *output.evidence,
+            *output.recommended_actions,
+            output.band_message,
+        )
+    )
+
+
+def _evidence_anchors(context: AutonomousRoleContext) -> tuple[str, ...]:
+    incident = context.incident
+    anchors = {
+        incident.incident_id.lower(),
+        incident.affected_host.lower(),
+        incident.affected_user.lower(),
+        incident.department.lower(),
+        *(value.lower() for value in incident.indicators.values()),
+        "powershell",
+        "failed login",
+        "outbound",
+        "file access",
+        "sensitive file",
+        "edr alert",
+        "endpoint log",
+        "proxy log",
+    }
+    return tuple(sorted(anchors))
 
 
 def _ensure_run_marker_and_mentions(
