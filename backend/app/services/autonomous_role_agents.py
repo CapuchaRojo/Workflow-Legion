@@ -38,6 +38,13 @@ ROLE_LANGUAGE = {
         "indicator",
         "destination",
         "hosting",
+        "source ip",
+        "sender domain",
+        "lookalike",
+        "bucket",
+        "public acl",
+        "dns",
+        "beacon",
     ),
     "forensics": (
         "forensic",
@@ -47,6 +54,12 @@ ROLE_LANGUAGE = {
         "process",
         "file access",
         "network",
+        "identity",
+        "authentication",
+        "mailbox",
+        "storage",
+        "dns",
+        "persistence",
     ),
 }
 
@@ -129,8 +142,8 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         display_name="Alert Triage Agent",
         trigger_criteria="Band mention plus AUTO:START for the incident ID.",
         role_scope=(
-            "Classify WL-INC-001, cite the triggering alert evidence, and request "
-            "parallel Threat Intel and Forensics work."
+            "Classify the active incident, cite the triggering alert evidence, "
+            "and request parallel Threat Intel and Forensics work."
         ),
         provider_name="aimlapi",
         handoff_targets=("threat_intel", "forensics"),
@@ -181,7 +194,7 @@ ROLE_DEFINITIONS: dict[str, RoleDefinition] = {
         ),
         provider_name="featherless",
         handoff_targets=(),
-        stop_condition="Post final containment decision for WL-INC-001.",
+        stop_condition="Post final containment decision for the active incident.",
     ),
 }
 
@@ -396,6 +409,7 @@ def _build_provider_prompt(
     )
     return (
         f"Incident: {incident.incident_id}\n"
+        f"Title: {incident.title}\n"
         f"Host: {incident.affected_host}\n"
         f"User: {incident.affected_user}\n"
         f"Department: {incident.department}\n"
@@ -585,10 +599,13 @@ def _evidence_anchors(context: AutonomousRoleContext) -> tuple[str, ...]:
     incident = context.incident
     anchors = {
         incident.incident_id.lower(),
+        incident.title.lower(),
         incident.affected_host.lower(),
         incident.affected_user.lower(),
         incident.department.lower(),
-        *(value.lower() for value in incident.indicators.values()),
+        incident.summary.lower(),
+        *(key.lower().replace("_", " ") for key in incident.indicators),
+        *(str(value).lower() for value in incident.indicators.values()),
         "powershell",
         "failed login",
         "outbound",
