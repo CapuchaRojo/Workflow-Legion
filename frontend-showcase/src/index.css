@@ -729,8 +729,27 @@ p {
   margin-top: 2px;
 }
 
+.agent-card__lens {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid rgba(51, 209, 122, 0.22);
+  border-radius: 8px;
+  margin: 4px 0 10px;
+  padding: 5px 8px;
+  color: #d9ffe8;
+  background: rgba(51, 209, 122, 0.08);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .mission-agent-card p {
   margin-bottom: 16px;
+}
+
+.mission-agent-card .agent-card__summary {
+  margin-top: 0;
 }
 
 .mission-card-meta {

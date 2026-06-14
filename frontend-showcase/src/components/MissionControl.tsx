@@ -3,6 +3,7 @@ import { SectionHeader } from "./SectionHeader";
 import {
   demoMissionControlState,
   isMissionControlState,
+  type MissionControlRole,
   type MissionControlRoleStatus,
   type MissionControlState,
 } from "../missionControlState";
@@ -46,6 +47,14 @@ const missionLayerCards = [
   },
 ];
 
+const roleLensLabels: Record<string, string> = {
+  triage: "Classification / Routing",
+  threat_intel: "Indicator Context",
+  forensics: "Evidence Timeline",
+  compliance: "Audit / Escalation Review",
+  commander: "Final Decision",
+};
+
 export function MissionControl() {
   const { state, source } = useMissionControlFeed();
   const providerLabels = useMemo(
@@ -82,7 +91,7 @@ export function MissionControl() {
             <div className="mission-summary-card mission-summary-card--primary">
               <span className="panel-label">Incident ID</span>
               <h3>{state.incident_id}</h3>
-              <p>Suspicious PowerShell and possible data exfiltration on FIN-042.</p>
+              <p>Sanitized live scenario status from the backend runtime export.</p>
             </div>
             <div className="mission-summary-card">
               <span className="panel-label">Run ID</span>
@@ -179,7 +188,12 @@ export function MissionControl() {
                     </span>
                   </div>
                   <h3>{role.display_name}</h3>
-                  <p>{role.summary || "Waiting for runtime output."}</p>
+                  <span className="agent-card__lens">
+                    {roleLensFor(role.role)}
+                  </span>
+                  <p className="agent-card__summary">
+                    {summaryForRoleCard(role)}
+                  </p>
                   <div className="mission-card-meta">
                     <span>Provider: {role.provider}</span>
                     <span>Mode: {role.provider_mode}</span>
@@ -305,4 +319,16 @@ function toneForStatus(status: string): StatusTone {
     return "warning";
   }
   return "info";
+}
+
+function roleLensFor(role: string): string {
+  return roleLensLabels[role] ?? "Role Output";
+}
+
+function summaryForRoleCard(role: MissionControlRole): string {
+  if (role.role === "commander" && role.status === "complete") {
+    return "Final decision posted. See Commander Decision panel below.";
+  }
+
+  return role.summary || "Waiting for runtime output.";
 }
