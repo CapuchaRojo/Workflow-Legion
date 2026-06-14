@@ -192,7 +192,7 @@ export function MissionControl() {
                     {roleLensFor(role.role)}
                   </span>
                   <p className="agent-card__summary">
-                    {summaryForRoleCard(role)}
+                    {summaryForRoleCard(role, state)}
                   </p>
                   <div className="mission-card-meta">
                     <span>Provider: {role.provider}</span>
@@ -325,13 +325,32 @@ function roleLensFor(role: string): string {
   return roleLensLabels[role] ?? "Role Output";
 }
 
-function summaryForRoleCard(role: MissionControlRole): string {
-  if (role.role === "commander" && role.status === "complete") {
-    return (
-      "Final decision posted: contain affected surface, protect credentials, " +
-      "preserve evidence, and continue scope validation."
-    );
-  }
+function summaryForRoleCard(
+  role: MissionControlRole,
+  state: MissionControlState,
+): string {
+  const incidentId = state.incident_id;
+  const targets = handoffTargetsText(role);
 
-  return role.summary || "Waiting for runtime output.";
+  switch (role.role) {
+    case "triage":
+      return `Classified ${incidentId} and routed parallel investigation to ${targets}.`;
+    case "threat_intel":
+      return `Reviewed indicator context for ${incidentId} and handed governance risk to ${targets}.`;
+    case "forensics":
+      return `Built evidence/timeline context for ${incidentId} and handed findings to ${targets}.`;
+    case "compliance":
+      return `Reviewed audit/escalation sensitivity for ${incidentId} and requested ${targets} decision.`;
+    case "commander":
+      return (
+        "Final decision posted: contain affected surface, protect credentials, " +
+        "preserve evidence, and continue scope validation."
+      );
+    default:
+      return role.summary || "Waiting for runtime output.";
+  }
+}
+
+function handoffTargetsText(role: MissionControlRole): string {
+  return role.handoff_targets.length ? role.handoff_targets.join(" + ") : "the next role";
 }
