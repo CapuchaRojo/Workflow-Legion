@@ -128,7 +128,7 @@ def build_forensics_finding(
         evidence=[
             EvidenceItem(
                 evidence_id="EV-FO-001",
-                category="process",
+                category=_activity_category(incident),
                 summary=(
                     f"{_process_observable(incident)} observed on "
                     f"{incident.affected_host} for {incident.affected_user}."
@@ -158,11 +158,7 @@ def build_forensics_finding(
             ),
         ],
         timeline=timeline,
-        recommended_actions=[
-            f"Isolate {incident.affected_host} from the network pending commander decision.",
-            f"Reset {incident.affected_user} credentials and review active sessions.",
-            "Preserve endpoint, identity, file, and network evidence.",
-        ],
+        recommended_actions=_forensics_actions(incident),
         band_message=(
             f"{band_mention(compliance_handle)} Forensics update for "
             f"{incident.incident_id}: evidence supports high-risk suspicious "
@@ -221,13 +217,7 @@ def build_commander_finding(incident: IncidentState) -> AgentFinding:
             f"{incident.affected_host}. Contain the affected surface, protect "
             "credentials, and continue scope validation."
         ),
-        recommended_actions=[
-            f"Isolate {incident.affected_host} immediately.",
-            f"Reset {incident.affected_user} credentials and revoke active sessions.",
-            f"Monitor or restrict {_primary_indicator(incident)} during investigation.",
-            "Preserve endpoint, identity, file, and network evidence.",
-            "Run a second validation pass before final external reporting decisions.",
-        ],
+        recommended_actions=_commander_actions(incident),
         band_message=(
             f"Commander final decision for {incident.incident_id}: HIGH severity. "
             f"Contain {incident.affected_host}, protect {incident.affected_user}, "
@@ -409,6 +399,29 @@ def _timeline_network_activity(incident: IncidentState) -> str:
     return f"Network or access pattern reviewed for {incident.affected_host}"
 
 
+def _activity_category(incident: IncidentState) -> str:
+    if _indicator_value(incident, "process") or _indicator_value(incident, "file"):
+        return "process"
+    if _indicator_value(incident, "failed_login_count") or _indicator_value(
+        incident,
+        "impossible_travel",
+    ):
+        return "authentication"
+    if _indicator_value(incident, "sender_domain") or _indicator_value(
+        incident,
+        "mailbox_rule",
+    ):
+        return "mailbox"
+    if _indicator_value(incident, "bucket") or _indicator_value(
+        incident,
+        "public_acl",
+    ):
+        return "storage"
+    if _indicator_value(incident, "dns_rate") or _indicator_value(incident, "domain"):
+        return "dns"
+    return "activity"
+
+
 def _build_forensics_timeline(incident: IncidentState) -> list[TimelineEvent]:
     process = _friendly_process(_indicator_value(incident, "process"))
     return [
@@ -447,6 +460,39 @@ def _build_forensics_timeline(incident: IncidentState) -> list[TimelineEvent]:
     ]
 
 
+def _forensics_actions(incident: IncidentState) -> list[str]:
+    scenario_actions = {
+        "WL-INC-002": [
+            "Disable the suspicious session for s.patel pending commander decision.",
+            "Reset s.patel credentials and review active sessions.",
+            "Preserve identity logs and MFA fatigue evidence.",
+        ],
+        "WL-INC-003": [
+            "Preserve a.lee mailbox evidence and mail-security logs.",
+            "Disable the external forwarding rule pending commander decision.",
+            "Verify the payment change request out-of-band with the vendor.",
+        ],
+        "WL-INC-004": [
+            "Revoke anonymous read access on customer-export-archive pending commander decision.",
+            "Rotate svc-data-export credentials after preserving evidence.",
+            "Preserve cloud storage access logs for exports/q4/.",
+        ],
+        "WL-INC-005": [
+            "Isolate ENG-117 from the network pending commander decision.",
+            "Preserve DNS and process telemetry for updater_service.exe.",
+            "Disable the suspicious scheduled task persistence mechanism.",
+        ],
+    }
+    return scenario_actions.get(
+        incident.incident_id,
+        [
+            f"Isolate {incident.affected_host} from the network pending commander decision.",
+            f"Reset {incident.affected_user} credentials and review active sessions.",
+            "Preserve endpoint, identity, file, and network evidence.",
+        ],
+    )
+
+
 def _compliance_actions(incident: IncidentState) -> list[str]:
     scope_word = (
         "exfiltration"
@@ -458,3 +504,46 @@ def _compliance_actions(incident: IncidentState) -> list[str]:
         f"Notify {incident.department} leadership and security management.",
         f"Defer external notification until {scope_word} scope is confirmed.",
     ]
+
+
+def _commander_actions(incident: IncidentState) -> list[str]:
+    scenario_actions = {
+        "WL-INC-002": [
+            "Disable the suspicious s.patel session immediately.",
+            "Reset s.patel credentials and revoke active sessions.",
+            "Review MFA fatigue patterns and denied push prompts.",
+            "Preserve identity, MFA, and source IP evidence.",
+            "Run a second validation pass before final external reporting decisions.",
+        ],
+        "WL-INC-003": [
+            "Preserve a.lee mailbox and message trace evidence.",
+            "Disable the external forwarding rule immediately.",
+            "Verify the payment change request out-of-band before any payment action.",
+            "Preserve invoice, sender-domain, and mailbox-rule evidence.",
+            "Run a second validation pass before final external reporting decisions.",
+        ],
+        "WL-INC-004": [
+            "Revoke anonymous read access on customer-export-archive immediately.",
+            "Rotate svc-data-export credentials after evidence preservation.",
+            "Preserve cloud storage access logs and object metadata.",
+            "Review exports/q4/ for potential customer contact data exposure.",
+            "Run a second validation pass before final external reporting decisions.",
+        ],
+        "WL-INC-005": [
+            "Isolate ENG-117 immediately.",
+            "Preserve DNS and process telemetry for updater_service.exe.",
+            "Disable the suspicious scheduled task persistence mechanism.",
+            "Monitor or restrict destination ip=198.51.100.42 during investigation.",
+            "Run a second validation pass before final external reporting decisions.",
+        ],
+    }
+    return scenario_actions.get(
+        incident.incident_id,
+        [
+            f"Isolate {incident.affected_host} immediately.",
+            f"Reset {incident.affected_user} credentials and revoke active sessions.",
+            f"Monitor or restrict {_primary_indicator(incident)} during investigation.",
+            "Preserve endpoint, identity, file, and network evidence.",
+            "Run a second validation pass before final external reporting decisions.",
+        ],
+    )

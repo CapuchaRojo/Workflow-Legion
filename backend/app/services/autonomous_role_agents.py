@@ -38,6 +38,13 @@ ROLE_LANGUAGE = {
         "indicator",
         "destination",
         "hosting",
+        "source ip",
+        "sender domain",
+        "lookalike",
+        "bucket",
+        "public acl",
+        "dns",
+        "beacon",
     ),
     "forensics": (
         "forensic",
@@ -47,6 +54,12 @@ ROLE_LANGUAGE = {
         "process",
         "file access",
         "network",
+        "identity",
+        "authentication",
+        "mailbox",
+        "storage",
+        "dns",
+        "persistence",
     ),
 }
 

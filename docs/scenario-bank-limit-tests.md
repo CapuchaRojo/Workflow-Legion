@@ -69,7 +69,7 @@ incident ID is read from the Band message.
 For `WL-INC-002`:
 
 ```powershell
-backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --baseline-existing --debug-receive --run-id live-wl-inc-002
+backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --poll-interval 3 --max-turns 8 --message-limit 25 --stop-after-complete --debug-receive --ignore-existing --frontend-studio-export frontend-showcase\public\mission-control-status.json --run-id live-wl-inc-002
 ```
 
 Band room message:
@@ -81,7 +81,7 @@ Band room message:
 For `WL-INC-003`:
 
 ```powershell
-backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --baseline-existing --debug-receive --run-id live-wl-inc-003
+backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --poll-interval 3 --max-turns 8 --message-limit 25 --stop-after-complete --debug-receive --ignore-existing --frontend-studio-export frontend-showcase\public\mission-control-status.json --run-id live-wl-inc-003
 ```
 
 Band room message:
@@ -93,7 +93,7 @@ Band room message:
 For `WL-INC-004`:
 
 ```powershell
-backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --baseline-existing --debug-receive --run-id live-wl-inc-004
+backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --poll-interval 3 --max-turns 8 --message-limit 25 --stop-after-complete --debug-receive --ignore-existing --frontend-studio-export frontend-showcase\public\mission-control-status.json --run-id live-wl-inc-004
 ```
 
 Band room message:
@@ -105,7 +105,7 @@ Band room message:
 For `WL-INC-005`:
 
 ```powershell
-backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --baseline-existing --debug-receive --run-id live-wl-inc-005
+backend\.venv\Scripts\python.exe backend\run_autonomous_agents.py --poll-interval 3 --max-turns 8 --message-limit 25 --stop-after-complete --debug-receive --ignore-existing --frontend-studio-export frontend-showcase\public\mission-control-status.json --run-id live-wl-inc-005
 ```
 
 Band room message:

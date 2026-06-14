@@ -9,7 +9,12 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 sys.path.insert(0, str(BACKEND_DIR))
 
 from app.core.settings import Settings  # noqa: E402
+from app.services.autonomous_role_agents import ROLE_LANGUAGE  # noqa: E402
 from app.services.autonomous_band_runtime import build_runtime_from_settings  # noqa: E402
+from app.services.deterministic_agents import (  # noqa: E402
+    build_commander_finding,
+    build_forensics_finding,
+)
 from app.services.incident_repository import (  # noqa: E402
     DEMO_INCIDENT_ID,
     SCENARIO_REGISTRY,
@@ -62,6 +67,33 @@ WL_INC_001_ONLY_VALUES = (
     "185.199.108.153",
 )
 
+EXPECTED_FORENSICS_CATEGORIES = {
+    "WL-INC-001": "process",
+    "WL-INC-002": "authentication",
+    "WL-INC-003": "mailbox",
+    "WL-INC-004": "storage",
+    "WL-INC-005": "process",
+}
+
+EXPECTED_SCENARIO_ACTIONS = {
+    "WL-INC-002": {
+        "forensics": "Preserve identity logs and MFA fatigue evidence.",
+        "commander": "Disable the suspicious s.patel session immediately.",
+    },
+    "WL-INC-003": {
+        "forensics": "Disable the external forwarding rule pending commander decision.",
+        "commander": "Verify the payment change request out-of-band before any payment action.",
+    },
+    "WL-INC-004": {
+        "forensics": "Preserve cloud storage access logs for exports/q4/.",
+        "commander": "Revoke anonymous read access on customer-export-archive immediately.",
+    },
+    "WL-INC-005": {
+        "forensics": "Disable the suspicious scheduled task persistence mechanism.",
+        "commander": "Preserve DNS and process telemetry for updater_service.exe.",
+    },
+}
+
 
 class ScenarioBankTests(unittest.TestCase):
     def test_all_phase_four_scenarios_are_registered(self) -> None:
@@ -111,6 +143,62 @@ class ScenarioBankTests(unittest.TestCase):
 
     def test_unknown_incident_id_returns_none(self) -> None:
         self.assertIsNone(incident_repository.get("WL-INC-999"))
+
+    def test_role_language_covers_scenario_bank_terms(self) -> None:
+        for term in (
+            "source ip",
+            "sender domain",
+            "lookalike",
+            "bucket",
+            "public acl",
+            "dns",
+            "beacon",
+            "indicator",
+        ):
+            with self.subTest(role="threat_intel", term=term):
+                self.assertIn(term, ROLE_LANGUAGE["threat_intel"])
+
+        for term in (
+            "identity",
+            "authentication",
+            "mailbox",
+            "storage",
+            "dns",
+            "persistence",
+            "timeline",
+            "evidence",
+        ):
+            with self.subTest(role="forensics", term=term):
+                self.assertIn(term, ROLE_LANGUAGE["forensics"])
+
+    def test_forensics_primary_evidence_category_is_scenario_aware(self) -> None:
+        for incident_id, expected_category in EXPECTED_FORENSICS_CATEGORIES.items():
+            with self.subTest(incident_id=incident_id):
+                finding = build_forensics_finding(
+                    build_incident(incident_id),
+                    compliance_handle="@ComplianceAgent",
+                )
+
+                self.assertEqual(finding.evidence[0].category, expected_category)
+
+    def test_new_scenario_actions_are_scenario_aware(self) -> None:
+        for incident_id, expected_actions in EXPECTED_SCENARIO_ACTIONS.items():
+            with self.subTest(incident_id=incident_id):
+                incident = build_incident(incident_id)
+                forensics = build_forensics_finding(
+                    incident,
+                    compliance_handle="@ComplianceAgent",
+                )
+                commander = build_commander_finding(incident)
+
+                self.assertIn(
+                    expected_actions["forensics"],
+                    forensics.recommended_actions,
+                )
+                self.assertIn(
+                    expected_actions["commander"],
+                    commander.recommended_actions,
+                )
 
     def test_new_scenarios_complete_deterministic_dry_run(self) -> None:
         expected_roles = [
