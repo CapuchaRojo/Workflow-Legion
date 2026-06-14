@@ -64,6 +64,7 @@ MENTION_METADATA_PRINT_FIELDS = (
     "text",
     "label",
 )
+TERMINAL_HANDOFF_TARGETS = {"stop", "final_decision", "final decision"}
 
 
 @dataclass(frozen=True)
@@ -99,6 +100,8 @@ class SentBandMessage:
     content: str
     mention_handles: tuple[str, ...]
     delivery: BandDeliveryResult
+    workflow_handoff_roles: tuple[str, ...] = ()
+    terminal_audit_mention_handles: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -186,6 +189,7 @@ class LiveBandEventSource:
         poll_interval_seconds: float = 5.0,
         single_pass: bool = False,
         message_limit: int = 5,
+        baseline_existing_messages: bool = False,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.chat_id = chat_id
@@ -193,10 +197,16 @@ class LiveBandEventSource:
         self.poll_interval_seconds = poll_interval_seconds
         self.single_pass = single_pass
         self.message_limit = max(1, message_limit)
+        self.baseline_existing_messages = baseline_existing_messages
         self.debug_callback: Callable[[ReceiveBatch], None] | None = None
+        self.baseline_debug_callback: Callable[[ReceiveBatch, int], None] | None = None
         self._seen_message_ids: set[str] = set()
+        self._baseline_applied = False
 
     async def events(self) -> AsyncIterator[BandMessageEvent]:
+        if self.baseline_existing_messages and not self._baseline_applied:
+            await self.baseline_existing()
+
         while True:
             polled_events = await self.poll_once()
             batch = self.build_receive_batch(polled_events)
@@ -214,6 +224,18 @@ class LiveBandEventSource:
                 return
 
             await asyncio.sleep(self.poll_interval_seconds)
+
+    async def baseline_existing(self) -> ReceiveBatch:
+        polled_events = await self.poll_once()
+        batch = self.build_receive_batch(polled_events)
+        ignored_count = len(batch.items)
+        for item in batch.items:
+            self._seen_message_ids.add(item.event.message_id)
+
+        self._baseline_applied = True
+        if self.baseline_debug_callback:
+            self.baseline_debug_callback(batch, ignored_count)
+        return batch
 
     async def publish_sent_message(
         self,
@@ -273,19 +295,30 @@ class DryRunBandMessenger:
         role: str,
         output: AutonomousRoleOutput,
     ) -> SentBandMessage:
+        workflow_handoff_roles = _remote_handoff_roles(
+            output.handoff_roles,
+            self.registry,
+        )
+        mention_handles = _band_visible_routing_mention_handles(
+            self.registry,
+            role,
+            output.handoff_roles,
+        )
         message = SentBandMessage(
             message_id=f"dryrun-{len(self.sent_messages) + 1}-{role}",
             role=role,
             content=output.band_message,
-            mention_handles=tuple(
-                self.registry[target].handle
-                for target in output.handoff_roles
-                if target in self.registry
-            ),
+            mention_handles=mention_handles,
             delivery=BandDeliveryResult(
                 delivered=True,
                 detail="Dry-run message captured without live Band delivery.",
                 status_code=None,
+            ),
+            workflow_handoff_roles=workflow_handoff_roles,
+            terminal_audit_mention_handles=_terminal_audit_mention_handles(
+                mention_handles,
+                workflow_handoff_roles,
+                self.registry,
             ),
         )
         self.sent_messages.append(message)
@@ -309,23 +342,33 @@ class LiveBandMessenger:
         agent = self.registry[role]
         client = build_band_client_for_agent(self.settings, agent)
         chat_id = self._required_chat_id()
-        mention_handles = [
-            self.registry[target].handle
-            for target in output.handoff_roles
-            if target in self.registry
-        ]
+        workflow_handoff_roles = _remote_handoff_roles(
+            output.handoff_roles,
+            self.registry,
+        )
+        mention_handles = _band_visible_routing_mention_handles(
+            self.registry,
+            role,
+            output.handoff_roles,
+        )
 
         delivery = await client.send_text_message(
             chat_id=chat_id,
             content=output.band_message,
-            mention_handles=mention_handles,
+            mention_handles=list(mention_handles),
         )
         return SentBandMessage(
             message_id=f"live-{role}-{uuid4().hex}",
             role=role,
             content=output.band_message,
-            mention_handles=tuple(mention_handles),
+            mention_handles=mention_handles,
             delivery=delivery,
+            workflow_handoff_roles=workflow_handoff_roles,
+            terminal_audit_mention_handles=_terminal_audit_mention_handles(
+                mention_handles,
+                workflow_handoff_roles,
+                self.registry,
+            ),
         )
 
     def _required_chat_id(self) -> str:
@@ -383,11 +426,19 @@ class AutonomousBandRuntime:
             self.event_source.debug_callback = (
                 self.print_receive_diagnostics if enabled else None
             )
+            self.event_source.baseline_debug_callback = (
+                self.print_baseline_diagnostics if enabled else None
+            )
 
     def print_startup_receive_diagnostics(self) -> None:
         receive_key = _live_receive_api_key(self.settings, self.registry)
         poll_interval = getattr(self.event_source, "poll_interval_seconds", None)
         message_limit = getattr(self.event_source, "message_limit", None)
+        baseline_existing_messages = getattr(
+            self.event_source,
+            "baseline_existing_messages",
+            False,
+        )
         print(
             "[debug-receive] config "
             f"band_chat_configured={bool(self.settings.band_chat_id)} "
@@ -399,9 +450,27 @@ class AutonomousBandRuntime:
             f"active_event_source={type(self.event_source).__name__} "
             f"poll_interval={poll_interval if poll_interval is not None else 'n/a'} "
             f"message_limit={message_limit if message_limit is not None else 'n/a'} "
+            f"baseline_existing_messages={baseline_existing_messages} "
             f"include_seen_debug={self.include_seen_debug} "
             f"internal_handoff_queue={self.internal_handoff_queue_enabled} "
             f"run_id={self.run_id or 'pending'}"
+        )
+
+    def print_baseline_diagnostics(
+        self,
+        batch: ReceiveBatch,
+        ignored_count: int,
+    ) -> None:
+        unique_seen_count: int | str = "n/a"
+        if isinstance(self.event_source, LiveBandEventSource):
+            unique_seen_count = len(self.event_source._seen_message_ids)
+
+        print(
+            "[debug-receive] "
+            "baseline_existing_messages=True "
+            f"baselined_existing_message_count={ignored_count} "
+            f"unique_seen_message_count={unique_seen_count} "
+            f"batch_order_strategy={batch.order_strategy}"
         )
 
     def print_receive_diagnostics(
@@ -743,6 +812,7 @@ class AutonomousBandRuntime:
             role=role,
             delivered=sent_message.delivery.delivered,
             status_code=sent_message.delivery.status_code,
+            detail=sent_message.delivery.detail,
         )
         if not sent_message.delivery.delivered:
             self.state_store.save(self.state)
@@ -756,7 +826,9 @@ class AutonomousBandRuntime:
                 summary=output.summary,
                 evidence=list(output.evidence),
                 recommended_actions=list(output.recommended_actions),
-                handoff_roles=list(output.handoff_roles),
+                handoff_roles=list(
+                    _remote_handoff_roles(output.handoff_roles, self.registry)
+                ),
                 band_message=output.band_message,
                 source_message_ids=list(context.source_message_ids),
             )
@@ -782,9 +854,16 @@ class AutonomousBandRuntime:
             return
         if not sent_message.delivery.delivered:
             return
-        if not sent_message.mention_handles:
+        if not sent_message.workflow_handoff_roles:
             return
         if self.state is None:
+            return
+
+        handoff_mentions = _band_handoff_mention_handles(
+            self.registry,
+            sent_message.workflow_handoff_roles,
+        )
+        if not handoff_mentions:
             return
 
         self._internal_event_counter += 1
@@ -796,7 +875,7 @@ class AutonomousBandRuntime:
                 ),
                 content=sent_message.content,
                 author_handle=self.registry[role].handle,
-                mention_handles=sent_message.mention_handles,
+                mention_handles=handoff_mentions,
             )
         )
 
@@ -853,6 +932,7 @@ def build_runtime_from_settings(
     stop_after_complete: bool = True,
     single_pass: bool = False,
     message_limit: int = 5,
+    baseline_existing_messages: bool = False,
     settings_obj: Settings = settings,
 ) -> AutonomousBandRuntime:
     registry = build_band_remote_agent_registry(settings_obj)
@@ -911,6 +991,7 @@ def build_runtime_from_settings(
             poll_interval_seconds=poll_interval_seconds,
             single_pass=single_pass,
             message_limit=message_limit,
+            baseline_existing_messages=baseline_existing_messages,
         ),
         messenger=LiveBandMessenger(settings_obj, registry),
         reasoning_provider=reasoning_provider,
@@ -1116,6 +1197,78 @@ def _normalize_mention_candidates(values: list[str] | tuple[str, ...]) -> list[s
             normalized.append(clean)
 
     return normalized
+
+
+def _band_handoff_mention_handles(
+    registry: dict[str, BandRemoteAgent],
+    handoff_roles: tuple[str, ...],
+) -> tuple[str, ...]:
+    return tuple(
+        registry[target].handle
+        for target in _remote_handoff_roles(handoff_roles, registry)
+    )
+
+
+def _band_visible_routing_mention_handles(
+    registry: dict[str, BandRemoteAgent],
+    role: str,
+    handoff_roles: tuple[str, ...],
+) -> tuple[str, ...]:
+    workflow_handoff_roles = _remote_handoff_roles(handoff_roles, registry)
+    if workflow_handoff_roles:
+        return _band_handoff_mention_handles(registry, workflow_handoff_roles)
+
+    if role == "commander":
+        # Band currently rejects this send path without a mention. The terminal
+        # Commander post routes visibly to Compliance for audit only; it is not
+        # exported or queued as a downstream workflow handoff.
+        return _terminal_commander_audit_mention_handles(registry)
+
+    return ()
+
+
+def _terminal_commander_audit_mention_handles(
+    registry: dict[str, BandRemoteAgent],
+) -> tuple[str, ...]:
+    compliance = registry.get("compliance")
+    if compliance is None:
+        return ()
+    return (compliance.handle,)
+
+
+def _terminal_audit_mention_handles(
+    mention_handles: tuple[str, ...],
+    workflow_handoff_roles: tuple[str, ...],
+    registry: dict[str, BandRemoteAgent],
+) -> tuple[str, ...]:
+    workflow_handles = set(
+        _band_handoff_mention_handles(registry, workflow_handoff_roles)
+    )
+    return tuple(
+        handle for handle in mention_handles if handle not in workflow_handles
+    )
+
+
+def _remote_handoff_roles(
+    handoff_roles: tuple[str, ...],
+    registry: dict[str, BandRemoteAgent],
+) -> tuple[str, ...]:
+    roles: list[str] = []
+    for target in handoff_roles:
+        if _is_terminal_handoff_target(target):
+            continue
+        if target in registry and target not in roles:
+            roles.append(target)
+    return tuple(roles)
+
+
+def _is_terminal_handoff_target(target: str) -> bool:
+    clean = _normalize_handoff_target(target)
+    return clean in TERMINAL_HANDOFF_TARGETS
+
+
+def _normalize_handoff_target(target: str) -> str:
+    return re.sub(r"[_-]+", " ", str(target).strip().removeprefix("@").lower())
 
 
 def _normalize_mention_candidate(value: str) -> str:

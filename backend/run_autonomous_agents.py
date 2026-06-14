@@ -104,6 +104,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=5,
         help="Maximum recent Band messages to fetch per receive poll.",
     )
+    parser.add_argument(
+        "--ignore-existing",
+        "--baseline-existing",
+        dest="baseline_existing",
+        action="store_true",
+        help=(
+            "Before live processing, fetch one receive batch and mark those "
+            "existing message IDs as seen without starting a run."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -120,6 +130,7 @@ async def main(argv: Sequence[str] | None = None) -> int:
         stop_after_complete=args.stop_after_complete,
         single_pass=args.single_pass,
         message_limit=args.message_limit,
+        baseline_existing_messages=args.baseline_existing,
     )
     runtime.enable_receive_debug(
         args.debug_receive,
@@ -148,6 +159,11 @@ async def main(argv: Sequence[str] | None = None) -> int:
         )
         if args.single_pass:
             print("Single-pass mode enabled: processing current messages once.")
+        if args.baseline_existing:
+            print(
+                "Baseline-existing mode enabled: the first receive batch will "
+                "be marked seen before workflow processing."
+            )
 
     state = await runtime.run_until_complete()
 
