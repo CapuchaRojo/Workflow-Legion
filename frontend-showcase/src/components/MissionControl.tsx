@@ -327,7 +327,10 @@ function roleLensFor(role: string): string {
 
 function summaryForRoleCard(role: MissionControlRole): string {
   if (role.role === "commander" && role.status === "complete") {
-    return "Final decision posted. See Commander Decision panel below.";
+    return (
+      "Final decision posted: contain affected surface, protect credentials, " +
+      "preserve evidence, and continue scope validation."
+    );
   }
 
   return role.summary || "Waiting for runtime output.";
