@@ -17,6 +17,15 @@ npm run dev
 
 This showcase does not call the backend, does not use Supabase or auth, and does not require environment files or API keys. Mission Control can optionally read a sanitized local JSON file from `public\mission-control-status.json`; if that file is missing, it falls back to built-in demo data.
 
+## Mission Control positioning
+
+The showcase integrates the NativelyAI / Native.Builder presentation layer without replacing the working runtime contract:
+
+- Band coordinates agents and provides visible proof through room messages, mentions, handoffs, shared context, and task state.
+- The backend executes deterministic autonomous runtime and state-machine logic, then exports sanitized Mission Control JSON.
+- NativelyAI / Native.Builder is the Mission Control and productization layer for demos, screenshots, and stakeholder storytelling.
+- AI/ML API and Featherless remain provider support layers only.
+
 ## Live Mission Control export
 
 From the repository root, run the autonomous runtime with the safe frontend export path:

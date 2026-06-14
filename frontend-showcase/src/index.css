@@ -462,7 +462,9 @@ p {
 .summary-card,
 .agent-card,
 .mission-agent-card,
+.mission-layer-card,
 .mission-panel,
+.mission-summary-card,
 .incident-brief,
 .flow-step,
 .endpoint-panel,
@@ -480,7 +482,9 @@ p {
 .summary-card,
 .agent-card,
 .mission-agent-card,
+.mission-layer-card,
 .mission-panel,
+.mission-summary-card,
 .incident-brief,
 .endpoint-panel,
 .sponsor-card,
@@ -497,9 +501,12 @@ p {
 }
 
 .mission-control-section {
+  position: relative;
+  overflow: hidden;
   border-bottom: 1px solid rgba(151, 182, 217, 0.12);
   background:
-    linear-gradient(180deg, rgba(0, 212, 255, 0.05), transparent 44%),
+    linear-gradient(180deg, rgba(0, 212, 255, 0.06), transparent 42%),
+    linear-gradient(90deg, rgba(51, 209, 122, 0.04), transparent 34%),
     rgba(255, 255, 255, 0.012);
 }
 
@@ -508,8 +515,46 @@ p {
   gap: 18px;
 }
 
+.mission-shell--showcase {
+  position: relative;
+}
+
+.mission-feed-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  border: 1px solid rgba(0, 212, 255, 0.24);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #c8f5ff;
+  background: rgba(0, 212, 255, 0.06);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.78rem;
+}
+
+.mission-feed-strip span:not(.status-dot) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.mission-feed-strip span:not(.status-dot)::after {
+  width: 1px;
+  height: 16px;
+  margin-left: 10px;
+  content: "";
+  background: rgba(151, 182, 217, 0.28);
+}
+
+.mission-feed-strip span:last-child::after {
+  display: none;
+}
+
 .mission-summary,
-.mission-details,
+.mission-command-grid,
+.mission-layer-grid,
+.mission-proof-grid,
 .mission-agent-grid {
   display: grid;
   gap: 18px;
@@ -519,12 +564,18 @@ p {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.mission-summary > div {
-  border-bottom: 1px solid rgba(151, 182, 217, 0.18);
-  padding-bottom: 14px;
+.mission-summary-card {
+  min-height: 164px;
 }
 
-.mission-summary h3 {
+.mission-summary-card--primary {
+  border-color: rgba(0, 212, 255, 0.36);
+  background:
+    linear-gradient(135deg, rgba(0, 212, 255, 0.1), transparent 52%),
+    rgba(16, 24, 39, 0.72);
+}
+
+.mission-summary-card h3 {
   margin: 8px 0 0;
   color: var(--text);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -532,8 +583,13 @@ p {
   overflow-wrap: anywhere;
 }
 
-.mission-details {
-  grid-template-columns: 1.4fr 0.8fr;
+.mission-summary-card p {
+  margin: 12px 0 0;
+  font-size: 0.88rem;
+}
+
+.mission-command-grid {
+  grid-template-columns: 1.35fr 0.9fr;
 }
 
 .mission-panel {
@@ -544,19 +600,109 @@ p {
   min-height: 150px;
 }
 
+.mission-panel-header,
+.mission-builder-brand,
+.mission-agent-heading,
+.mission-current-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
 .mission-panel p {
   margin: 10px 0 0;
 }
 
-.mission-chain,
-.provider-labels {
+.mission-panel small {
+  display: block;
+  margin-top: 12px;
+  color: var(--faint);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+}
+
+.mission-chain {
   color: var(--text);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
-.mission-current {
+.mission-current-row {
+  border-top: 1px solid rgba(151, 182, 217, 0.14);
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.mission-current-row span {
+  color: var(--faint);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.mission-current-row strong {
   color: var(--blue);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.mission-builder-panel {
+  border-color: rgba(51, 209, 122, 0.24);
+}
+
+.mission-builder-brand {
+  justify-content: flex-start;
+}
+
+.mission-builder-brand img {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+}
+
+.mission-builder-brand h3 {
+  margin: 5px 0 0;
+}
+
+.mission-layer-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mission-layer-card {
+  min-height: 176px;
+}
+
+.mission-layer-card span {
+  color: var(--blue);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mission-layer-card h3 {
+  margin: 10px 0 8px;
+}
+
+.mission-layer-card p {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+}
+
+.mission-agent-heading {
+  border-block: 1px solid rgba(151, 182, 217, 0.14);
+  padding: 18px 0;
+}
+
+.mission-agent-heading h3 {
+  margin: 8px 0 0;
+}
+
+.mission-agent-heading p {
+  max-width: 560px;
+  margin: 0;
+  font-size: 0.92rem;
 }
 
 .mission-agent-grid {
@@ -564,9 +710,23 @@ p {
 }
 
 .mission-agent-card {
+  position: relative;
   display: flex;
   min-height: 310px;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.mission-agent-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  content: "";
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.7), transparent);
+}
+
+.mission-agent-card h3 {
+  margin-top: 2px;
 }
 
 .mission-agent-card p {
@@ -581,7 +741,6 @@ p {
 }
 
 .mission-card-meta span,
-.mission-delivery,
 .mission-decision-status {
   border: 1px solid rgba(0, 212, 255, 0.18);
   border-radius: 8px;
@@ -602,14 +761,40 @@ p {
   font-size: 0.88rem;
 }
 
-.mission-delivery {
-  margin-top: 12px;
+.mission-delivery-row {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid rgba(151, 182, 217, 0.14);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.mission-delivery-row span,
+.mission-delivery-row small {
+  color: var(--faint);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.mission-delivery-row small {
+  display: block;
+  margin: 0;
+  text-transform: none;
+}
+
+.mission-delivery-row .status-pill {
+  justify-self: start;
 }
 
 .mission-decision-status {
   display: inline-flex;
   margin-top: 16px;
   color: var(--green);
+}
+
+.mission-proof-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .proof-strip {
@@ -925,16 +1110,23 @@ p {
   .split-grid,
   .architecture-layout,
   .flow-layout,
-  .mission-details,
+  .mission-command-grid,
+  .mission-proof-grid,
   .proof-strip {
     grid-template-columns: 1fr;
   }
 
   .agent-grid,
+  .mission-layer-grid,
   .mission-summary,
   .mission-agent-grid,
   .sponsor-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mission-agent-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .cta-inner {
@@ -1016,11 +1208,28 @@ p {
   }
 
   .agent-grid,
+  .mission-layer-grid,
+  .mission-proof-grid,
   .mission-summary,
   .mission-agent-grid,
   .sponsor-grid,
   .team-grid {
     grid-template-columns: 1fr;
+  }
+
+  .mission-feed-strip {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mission-feed-strip span::after {
+    display: none;
+  }
+
+  .mission-panel-header,
+  .mission-current-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .flow-step {
