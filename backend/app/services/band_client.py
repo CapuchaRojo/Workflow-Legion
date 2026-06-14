@@ -115,12 +115,11 @@ class BandClient:
         mentions = await self._resolve_mentions(chat_id, handles) if handles else []
         message_content = self._ensure_visible_mentions(content, mentions)
 
-        payload = {
-            "message": {
-                "content": message_content,
-                "mentions": mentions,
-            }
-        }
+        message_payload: dict[str, Any] = {"content": message_content}
+        if mentions:
+            message_payload["mentions"] = mentions
+
+        payload = {"message": message_payload}
 
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(
@@ -138,7 +137,7 @@ class BandClient:
 
         return BandDeliveryResult(
             delivered=False,
-            detail=f"Band rejected the message: {response.text}",
+            detail=f"Band rejected the message with status {response.status_code}.",
             status_code=response.status_code,
         )
 

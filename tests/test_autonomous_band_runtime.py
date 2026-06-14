@@ -23,6 +23,7 @@ from app.services.autonomous_band_runtime import (  # noqa: E402
     BandMessageEvent,
     DryRunBandMessenger,
     LiveBandEventSource,
+    LiveBandMessenger,
     ScriptedBandEventSource,
     SentBandMessage,
     build_dry_run_start_event,
@@ -36,6 +37,7 @@ from app.services.autonomous_role_agents import (  # noqa: E402
     ROLE_DEFINITIONS,
     AutonomousReasoningProvider,
     AutonomousRoleContext,
+    AutonomousRoleOutput,
 )
 from app.services.band_agent_registry import build_band_remote_agent_registry  # noqa: E402
 from app.services.band_client import BandDeliveryResult  # noqa: E402
@@ -461,6 +463,7 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
                 "--dump-recent-messages",
                 "--message-limit",
                 "25",
+                "--ignore-existing",
                 "--frontend-studio-export",
                 "frontend-showcase\\public\\mission-control-status.json",
             ]
@@ -474,10 +477,16 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self.assertTrue(args.include_seen_debug)
         self.assertTrue(args.dump_recent_messages)
         self.assertEqual(args.message_limit, 25)
+        self.assertTrue(args.baseline_existing)
         self.assertEqual(
             args.frontend_studio_export,
             "frontend-showcase\\public\\mission-control-status.json",
         )
+
+    def test_baseline_existing_cli_alias_parses(self) -> None:
+        args = parse_args(["--baseline-existing"])
+
+        self.assertTrue(args.baseline_existing)
 
     def test_live_runtime_receives_poll_interval_and_single_pass(self) -> None:
         settings_obj = self._settings_without_provider_keys()
@@ -496,6 +505,24 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         assert isinstance(runtime.event_source, LiveBandEventSource)
         self.assertEqual(runtime.event_source.poll_interval_seconds, 6.0)
         self.assertTrue(runtime.event_source.single_pass)
+        self.assertEqual(runtime.event_source.message_limit, 25)
+        self.assertFalse(runtime.event_source.baseline_existing_messages)
+
+    def test_live_runtime_receives_baseline_existing_option(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        settings_obj.band_chat_id = "placeholder-chat-id"
+        settings_obj.band_triage_agent_api_key = "placeholder-triage-key"
+
+        runtime = build_runtime_from_settings(
+            dry_run=False,
+            message_limit=25,
+            baseline_existing_messages=True,
+            settings_obj=settings_obj,
+        )
+
+        self.assertIsInstance(runtime.event_source, LiveBandEventSource)
+        assert isinstance(runtime.event_source, LiveBandEventSource)
+        self.assertTrue(runtime.event_source.baseline_existing_messages)
         self.assertEqual(runtime.event_source.message_limit, 25)
 
     def test_live_event_source_does_not_yield_old_start_message_repeatedly(self) -> None:
@@ -529,6 +556,142 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             ["m-old-start", "m-new-triage"],
         )
 
+    def test_live_without_baseline_processes_first_auto_message(self) -> None:
+        runtime, messenger, _source = self._live_internal_queue_runtime(
+            run_id="no-baseline-unit"
+        )
+
+        state = asyncio.run(runtime.run_until_complete())
+
+        self.assertEqual(state.status, "complete")
+        self.assertEqual(state.processed_message_ids["triage"], ["m-human-start"])
+        self.assertEqual(messenger.sent_messages[0].role, "triage")
+
+    def test_live_baseline_marks_first_batch_seen_without_processing(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        registry = build_band_remote_agent_registry(settings_obj)
+        historical_start = BandMessageEvent(
+            message_id="m-historical-start",
+            content=f"@{registry['triage'].handle} AUTO:START WL-INC-001",
+            author_handle="human",
+            mention_handles=(registry["triage"].handle,),
+        )
+        source = _PollingSequenceLiveBandEventSource(
+            [[historical_start], []],
+            baseline_existing_messages=True,
+            single_pass=True,
+        )
+        messenger = DryRunBandMessenger(registry)
+        runtime = AutonomousBandRuntime(
+            registry=registry,
+            event_source=source,
+            messenger=messenger,
+            reasoning_provider=AutonomousReasoningProvider(
+                provider_mode="deterministic",
+                settings_obj=settings_obj,
+            ),
+            state_store=AutonomousStateStore(tempfile.mkdtemp()),
+            run_id="baseline-only-unit",
+            settings_obj=settings_obj,
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "stopped before a run was started",
+        ):
+            asyncio.run(runtime.run_until_complete())
+
+        self.assertIsNone(runtime.state)
+        self.assertEqual(messenger.sent_messages, [])
+        self.assertIn("m-historical-start", source._seen_message_ids)
+
+    def test_live_baseline_allows_later_fresh_auto_message(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        registry = build_band_remote_agent_registry(settings_obj)
+        historical_start = BandMessageEvent(
+            message_id="m-historical-start",
+            content=f"@{registry['triage'].handle} AUTO:START WL-INC-001",
+            author_handle="human",
+            mention_handles=(registry["triage"].handle,),
+        )
+        fresh_start = BandMessageEvent(
+            message_id="m-fresh-start",
+            content=f"@{registry['triage'].handle} AUTO:START WL-INC-001",
+            author_handle="human",
+            mention_handles=(registry["triage"].handle,),
+        )
+        source = _PollingSequenceLiveBandEventSource(
+            [[historical_start], [historical_start, fresh_start]],
+            baseline_existing_messages=True,
+        )
+        messenger = DryRunBandMessenger(registry)
+        runtime = AutonomousBandRuntime(
+            registry=registry,
+            event_source=source,
+            messenger=messenger,
+            reasoning_provider=AutonomousReasoningProvider(
+                provider_mode="deterministic",
+                settings_obj=settings_obj,
+            ),
+            state_store=AutonomousStateStore(tempfile.mkdtemp()),
+            run_id="baseline-fresh-unit",
+            settings_obj=settings_obj,
+        )
+
+        state = asyncio.run(runtime.run_until_complete())
+
+        self.assertEqual(state.status, "complete")
+        self.assertEqual(state.processed_message_ids["triage"], ["m-fresh-start"])
+        self.assertNotIn("m-historical-start", state.processed_message_ids["triage"])
+        self.assertIn("m-historical-start", source._seen_message_ids)
+        self.assertIn("m-fresh-start", source._seen_message_ids)
+
+    def test_live_baseline_debug_output_is_sanitized(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        registry = build_band_remote_agent_registry(settings_obj)
+        historical_start = BandMessageEvent(
+            message_id="m-baseline-history",
+            content=(
+                f"@{registry['triage'].handle} AUTO:START WL-INC-001 "
+                "do-not-print-marker"
+            ),
+            author_handle="human",
+            mention_handles=(registry["triage"].handle,),
+        )
+        fresh_start = BandMessageEvent(
+            message_id="m-baseline-fresh",
+            content=f"@{registry['triage'].handle} AUTO:START WL-INC-001",
+            author_handle="human",
+            mention_handles=(registry["triage"].handle,),
+        )
+        source = _PollingSequenceLiveBandEventSource(
+            [[historical_start], [fresh_start]],
+            baseline_existing_messages=True,
+        )
+        runtime = AutonomousBandRuntime(
+            registry=registry,
+            event_source=source,
+            messenger=DryRunBandMessenger(registry),
+            reasoning_provider=AutonomousReasoningProvider(
+                provider_mode="deterministic",
+                settings_obj=settings_obj,
+            ),
+            state_store=AutonomousStateStore(tempfile.mkdtemp()),
+            run_id="baseline-debug-unit",
+            settings_obj=settings_obj,
+        )
+        runtime.enable_receive_debug(True)
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            runtime.print_startup_receive_diagnostics()
+            asyncio.run(runtime.run_until_complete())
+
+        diagnostics = output.getvalue()
+        self.assertIn("baseline_existing_messages=True", diagnostics)
+        self.assertIn("baselined_existing_message_count=1", diagnostics)
+        self.assertNotIn("do-not-print-marker", diagnostics)
+
     def test_live_human_start_drives_full_internal_queue_chain(self) -> None:
         runtime, messenger, _source = self._live_internal_queue_runtime()
 
@@ -543,6 +706,148 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             [message.role for message in messenger.sent_messages],
             ["triage", "threat_intel", "forensics", "compliance", "commander"],
         )
+
+    def test_live_commander_final_post_uses_audit_only_visible_mention(self) -> None:
+        settings_obj = self._settings_without_provider_keys()
+        settings_obj.band_chat_id = "placeholder-chat-id"
+        settings_obj.band_commander_agent_api_key = "placeholder-commander-key"
+        registry = build_band_remote_agent_registry(settings_obj)
+        client = _CapturingBandClient()
+        output = AutonomousRoleOutput(
+            role="commander",
+            provider_name="featherless",
+            provider_mode="deterministic_fallback",
+            summary="Final containment decision.",
+            evidence=(),
+            recommended_actions=(),
+            handoff_roles=("Stop",),
+            band_message="[WL-AUTO:WL-INC-001:commander:unit] Final decision.",
+        )
+
+        with patch(
+            "app.services.autonomous_band_runtime.build_band_client_for_agent",
+            return_value=client,
+        ):
+            sent_message = asyncio.run(
+                LiveBandMessenger(settings_obj, registry).send_role_output(
+                    "commander",
+                    output,
+                )
+            )
+
+        compliance_handle = registry["compliance"].handle
+        self.assertEqual(sent_message.mention_handles, (compliance_handle,))
+        self.assertEqual(sent_message.workflow_handoff_roles, ())
+        self.assertEqual(
+            sent_message.terminal_audit_mention_handles,
+            (compliance_handle,),
+        )
+        self.assertEqual(client.calls[0]["mention_handles"], [compliance_handle])
+        self.assertEqual(
+            client.calls[0]["content"],
+            "[WL-AUTO:WL-INC-001:commander:unit] Final decision.",
+        )
+
+    def test_commander_terminal_stop_success_marks_runtime_complete(self) -> None:
+        runtime, messenger, start = self._delivery_sequence_runtime(
+            [True, True, True, True, True],
+            reasoning_provider=_TerminalStopReasoningProvider(
+                self._settings_without_provider_keys()
+            ),
+        )
+
+        asyncio.run(runtime.handle_event(start))
+        asyncio.run(runtime._drain_internal_events())
+
+        assert runtime.state is not None
+        self.assertEqual(runtime.state.status, "complete")
+        self.assertIn("commander", runtime.state.completed_roles)
+        self.assertIsNotNone(runtime.state.final_decision_state)
+        self.assertEqual(runtime.state.role_outputs["commander"].handoff_roles, [])
+        self.assertEqual(messenger.sent_messages[-1].role, "commander")
+        self.assertEqual(
+            messenger.sent_messages[-1].mention_handles,
+            (runtime.registry["compliance"].handle,),
+        )
+        self.assertEqual(messenger.sent_messages[-1].workflow_handoff_roles, ())
+        self.assertEqual(
+            messenger.sent_messages[-1].terminal_audit_mention_handles,
+            (runtime.registry["compliance"].handle,),
+        )
+        self.assertEqual(len(runtime._internal_events), 0)
+
+    def test_commander_terminal_stop_failed_band_post_stays_incomplete(self) -> None:
+        runtime, messenger, start = self._delivery_sequence_runtime(
+            [True, True, True, True, False],
+            reasoning_provider=_TerminalStopReasoningProvider(
+                self._settings_without_provider_keys()
+            ),
+        )
+
+        asyncio.run(runtime.handle_event(start))
+        asyncio.run(runtime._drain_internal_events())
+
+        assert runtime.state is not None
+        self.assertNotIn("commander", runtime.state.completed_roles)
+        self.assertNotEqual(runtime.state.status, "complete")
+        self.assertIsNone(runtime.state.final_decision_state)
+        self.assertEqual(messenger.sent_messages[-1].role, "commander")
+        self.assertEqual(
+            messenger.sent_messages[-1].mention_handles,
+            (runtime.registry["compliance"].handle,),
+        )
+        self.assertEqual(messenger.sent_messages[-1].workflow_handoff_roles, ())
+        self.assertEqual(
+            runtime.state.delivery_status_by_role["commander"].status,
+            "failed",
+        )
+
+    def test_stop_terminal_target_is_not_exported_as_remote_band_agent(self) -> None:
+        runtime, _messenger, start = self._delivery_sequence_runtime(
+            [True, True, True, True, True],
+            reasoning_provider=_TerminalStopReasoningProvider(
+                self._settings_without_provider_keys()
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as state_dir:
+            export_path = Path(state_dir) / "mission-control-status.json"
+            runtime.state_store = AutonomousStateStore(
+                state_dir,
+                frontend_export_path=export_path,
+            )
+
+            asyncio.run(runtime.handle_event(start))
+            asyncio.run(runtime._drain_internal_events())
+            exported = json.loads(export_path.read_text("utf-8"))
+
+        commander = next(
+            role for role in exported["roles"] if role["role"] == "commander"
+        )
+        self.assertEqual(commander["handoff_targets"], [])
+        self.assertEqual(exported["final_commander_decision"]["status"], "complete")
+
+    def test_final_decision_terminal_target_is_not_a_remote_handoff(self) -> None:
+        runtime, messenger, start = self._delivery_sequence_runtime(
+            [True, True, True, True, True],
+            reasoning_provider=_TerminalStopReasoningProvider(
+                self._settings_without_provider_keys(),
+                terminal_target="final_decision",
+            ),
+        )
+
+        asyncio.run(runtime.handle_event(start))
+        asyncio.run(runtime._drain_internal_events())
+
+        assert runtime.state is not None
+        self.assertEqual(runtime.state.status, "complete")
+        self.assertEqual(runtime.state.role_outputs["commander"].handoff_roles, [])
+        self.assertEqual(messenger.sent_messages[-1].workflow_handoff_roles, ())
+        self.assertEqual(
+            messenger.sent_messages[-1].mention_handles,
+            (runtime.registry["compliance"].handle,),
+        )
+        self.assertEqual(len(runtime._internal_events), 0)
 
     def test_failed_triage_band_post_does_not_complete_role(self) -> None:
         runtime, messenger, start = self._delivery_sequence_runtime([False])
@@ -815,6 +1120,7 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
         self,
         delivered_results: list[bool],
         run_id: str = "delivery-unit",
+        reasoning_provider=None,
     ):
         settings_obj = self._settings_without_provider_keys()
         registry = build_band_remote_agent_registry(settings_obj)
@@ -830,7 +1136,8 @@ class AutonomousBandRuntimeTests(unittest.TestCase):
             registry=registry,
             event_source=source,
             messenger=messenger,
-            reasoning_provider=AutonomousReasoningProvider(
+            reasoning_provider=reasoning_provider
+            or AutonomousReasoningProvider(
                 provider_mode="deterministic",
                 settings_obj=settings_obj,
             ),
@@ -896,13 +1203,19 @@ class _SentinelAfterCommanderSource(ScriptedBandEventSource):
 
 
 class _PollingSequenceLiveBandEventSource(LiveBandEventSource):
-    def __init__(self, batches: list[list[BandMessageEvent]]) -> None:
+    def __init__(
+        self,
+        batches: list[list[BandMessageEvent]],
+        baseline_existing_messages: bool = False,
+        single_pass: bool = False,
+    ) -> None:
         super().__init__(
             base_url="https://band.example/api",
             chat_id="chat",
             agent_api_key="key",
             poll_interval_seconds=0,
-            single_pass=False,
+            single_pass=single_pass,
+            baseline_existing_messages=baseline_existing_messages,
         )
         self._batches = list(batches)
 
@@ -924,23 +1237,82 @@ class _SequencedDeliveryBandMessenger:
 
     async def send_role_output(self, role, output) -> SentBandMessage:
         delivered = self.delivered_results.pop(0)
+        workflow_handoff_roles = tuple(
+            target for target in output.handoff_roles if target in self.registry
+        )
+        mention_handles = tuple(
+            self.registry[target].handle for target in workflow_handoff_roles
+        )
+        if role == "commander" and not mention_handles:
+            mention_handles = (self.registry["compliance"].handle,)
+        workflow_handles = {
+            self.registry[target].handle for target in workflow_handoff_roles
+        }
         message = SentBandMessage(
             message_id=f"sequenced-{len(self.sent_messages) + 1}-{role}",
             role=role,
             content=output.band_message,
-            mention_handles=tuple(
-                self.registry[target].handle
-                for target in output.handoff_roles
-                if target in self.registry
-            ),
+            mention_handles=mention_handles,
             delivery=BandDeliveryResult(
                 delivered=delivered,
                 detail="Sequenced test delivery result.",
                 status_code=200 if delivered else 503,
             ),
+            workflow_handoff_roles=workflow_handoff_roles,
+            terminal_audit_mention_handles=tuple(
+                handle for handle in mention_handles if handle not in workflow_handles
+            ),
         )
         self.sent_messages.append(message)
         return message
+
+
+class _TerminalStopReasoningProvider(AutonomousReasoningProvider):
+    def __init__(
+        self,
+        settings_obj: Settings,
+        terminal_target: str = "Stop",
+    ) -> None:
+        super().__init__(
+            provider_mode="deterministic",
+            settings_obj=settings_obj,
+        )
+        self.terminal_target = terminal_target
+
+    async def decide(self, definition, context):
+        output = await super().decide(definition, context)
+        if definition.role != "commander":
+            return output
+
+        return AutonomousRoleOutput(
+            role=output.role,
+            provider_name=output.provider_name,
+            provider_mode=output.provider_mode,
+            summary=output.summary,
+            evidence=output.evidence,
+            recommended_actions=output.recommended_actions,
+            handoff_roles=(self.terminal_target,),
+            band_message=output.band_message,
+        )
+
+
+class _CapturingBandClient:
+    def __init__(self) -> None:
+        self.calls = []
+
+    async def send_text_message(self, chat_id, content, mention_handles=None):
+        self.calls.append(
+            {
+                "chat_id": chat_id,
+                "content": content,
+                "mention_handles": mention_handles,
+            }
+        )
+        return BandDeliveryResult(
+            delivered=True,
+            detail="Captured.",
+            status_code=201,
+        )
 
 
 if __name__ == "__main__":

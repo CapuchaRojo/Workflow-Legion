@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,6 +41,7 @@ class RoleDeliveryRecord:
     delivered: bool
     status: str
     status_code: int | None = None
+    detail: str | None = None
     attempted_at: str = field(default_factory=utc_now_iso)
 
 
@@ -98,12 +100,14 @@ class AutonomousRunState:
         role: str,
         delivered: bool,
         status_code: int | None = None,
+        detail: str | None = None,
     ) -> None:
         self.delivery_status_by_role[role] = RoleDeliveryRecord(
             role=role,
             delivered=delivered,
             status="delivered" if delivered else "failed",
             status_code=status_code,
+            detail=_safe_delivery_detail(detail) if not delivered else None,
         )
         self.updated_at = utc_now_iso()
 
@@ -256,10 +260,9 @@ def _frontend_role_status(
         "provider": output.provider_name if output else definition.provider_name,
         "provider_mode": output.provider_mode if output else "pending",
         "summary": output.summary if output else "",
-        "handoff_targets": [
-            ROLE_DEFINITIONS[target].display_name
-            for target in (output.handoff_roles if output else definition.handoff_targets)
-        ],
+        "handoff_targets": _handoff_target_display_names(
+            output.handoff_roles if output else definition.handoff_targets
+        ),
         "delivery": _safe_delivery_status(delivery),
         "completed_at": output.completed_at if output else None,
     }
@@ -299,8 +302,35 @@ def _safe_delivery_status(delivery: RoleDeliveryRecord | None) -> dict[str, Any]
         "status": delivery.status,
         "delivered": delivery.delivered,
         "status_code": delivery.status_code,
+        "detail": delivery.detail,
         "attempted_at": delivery.attempted_at,
     }
+
+
+def _handoff_target_display_names(targets: list[str] | tuple[str, ...]) -> list[str]:
+    names: list[str] = []
+    for target in targets:
+        definition = ROLE_DEFINITIONS.get(target)
+        if definition:
+            names.append(definition.display_name)
+    return names
+
+
+def _safe_delivery_detail(detail: str | None) -> str | None:
+    if not detail:
+        return None
+
+    redacted = re.sub(
+        r"(?i)\b(api[_-]?key|token|authorization)\s*[:=]\s*\S+",
+        r"\1=[REDACTED]",
+        str(detail),
+    )
+    redacted = re.sub(
+        r"(?i)\bbearer\s+[A-Za-z0-9._\-/]+",
+        "Bearer [REDACTED]",
+        redacted,
+    )
+    return " ".join(redacted.split())[:240]
 
 
 def _provider_stack_labels() -> list[dict[str, Any]]:
