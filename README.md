@@ -240,6 +240,7 @@ docs/demo-checklist.md
 docs/qa-observer-notes.md
 docs/sponsor-redemption-checklist.md
 docs/final-report-validation.md
+docs/provider-role-validation.md
 docs/remote-band-agent-readiness.md
 docs/natively-export-audit.md
 docs/tool-usage-doctrine.md
