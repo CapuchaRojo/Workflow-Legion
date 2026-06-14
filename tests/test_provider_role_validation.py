@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import sys
 import unittest
 from datetime import datetime, timezone
@@ -28,6 +29,7 @@ from app.services.provider_role_validation import (  # noqa: E402
     evaluate_provider_role_output,
     render_provider_role_validation_report,
 )
+from validate_provider_roles import run_validation  # noqa: E402
 
 
 class _FakeResponse:
@@ -331,6 +333,33 @@ class ProviderRoleValidationTests(unittest.TestCase):
             },
         }
         return payloads[role]
+
+
+@unittest.skipUnless(
+    os.getenv("RUN_LIVE_PROVIDER_TESTS") == "1",
+    "Set RUN_LIVE_PROVIDER_TESTS=1 to call AI/ML API.",
+)
+class LiveProviderRoleValidationTests(unittest.TestCase):
+    def test_first_three_roles_use_live_aimlapi_reasoning(self) -> None:
+        results = asyncio.run(run_validation())
+        non_live_roles = [
+            f"{result.role}={result.provider_mode}"
+            for result in results
+            if result.provider_mode != "provider_live"
+        ]
+
+        self.assertEqual(
+            non_live_roles,
+            [],
+            (
+                "Live AI/ML API validation did not complete for every role: "
+                f"{', '.join(non_live_roles)}. Check provider account access and "
+                "available credit; do not expose the API key in test output."
+            ),
+        )
+        self.assertTrue(
+            all(result.output_quality == "pass" for result in results),
+        )
 
 
 if __name__ == "__main__":

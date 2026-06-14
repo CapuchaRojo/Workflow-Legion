@@ -41,6 +41,15 @@ To require a real AI/ML API response for all three roles:
 python backend/validate_provider_roles.py --require-provider-live
 ```
 
+The same check is available as an opt-in integration test:
+
+```bash
+RUN_LIVE_PROVIDER_TESTS=1 env/bin/python -m unittest discover -s tests -v
+```
+
+Normal test runs skip this networked integration test. This keeps the default
+suite deterministic and free of provider billing or availability dependencies.
+
 Without a local `AIML_API_KEY` and `AIML_MODEL`, each role must report
 `deterministic_fallback`. A live response that is malformed, exceeds the Band
 post limit, leaves its role, invents evidence, adds an unexpected handoff, or
