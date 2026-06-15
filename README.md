@@ -71,11 +71,9 @@ The backend remains a deterministic workflow/runtime layer. Band remains the vis
 
 This proof does not overclaim autonomous live reasoning beyond the validated deterministic workflow plus remote Band identity posting proof.
 
-Live scenario validation notes are tracked in `docs/live-scenario-validation-log.md`.
-The notes summarize reviewed WL-INC-002 and WL-INC-003 live Band proof without
-committing raw runtime JSON or screenshots. Band remains the proof surface, the
-backend remains the deterministic runtime, and AI/ML API and Featherless remain
-support layers.
+Completed live scenario validation notes for WL-INC-002 through WL-INC-005 are
+tracked in `docs/live-scenario-validation-log.md` without committing raw proof
+artifacts.
 
 ## Incident Scenario
 
