@@ -12,6 +12,7 @@ from app.core.settings import Settings  # noqa: E402
 from app.services.autonomous_role_agents import ROLE_LANGUAGE  # noqa: E402
 from app.services.autonomous_band_runtime import build_runtime_from_settings  # noqa: E402
 from app.services.deterministic_agents import (  # noqa: E402
+    ROLE_SCENARIO_DETAIL_BANK,
     build_commander_finding,
     build_forensics_finding,
 )
@@ -92,6 +93,75 @@ EXPECTED_SCENARIO_ACTIONS = {
         "forensics": "Disable the suspicious scheduled task persistence mechanism.",
         "commander": "Preserve DNS and process telemetry for updater_service.exe.",
     },
+}
+
+EXPECTED_SUMMARY_INDICATORS = {
+    "WL-INC-004": (
+        "customer-export-archive",
+        "anonymous read",
+        "customer_contacts_q4.csv",
+        "svc-data-export",
+        "exports/q4",
+        "anonymous download burst",
+    ),
+    "WL-INC-005": (
+        "updater_service.exe",
+        "cdn-update-check.example",
+        "repeated lookups",
+        "198.51.100.42",
+        "scheduled task",
+    ),
+}
+
+EXPECTED_DETAIL_BANK_VALUES = {
+    "WL-INC-001": (
+        "FIN-042",
+        "j.morgan",
+        "powershell.exe",
+        "invoice_update.exe",
+        "finance_q4_forecast.xlsx",
+        "failed logins",
+        "185.199.108.153",
+    ),
+    "WL-INC-002": (
+        "IDP-EDGE-01",
+        "s.patel",
+        "Finance",
+        "148 failed logins",
+        "203.0.113.77",
+        "Singapore to Chicago within 11 minutes",
+        "repeated denied MFA pushes",
+        "one successful session",
+    ),
+    "WL-INC-003": (
+        "MAIL-SEC-02",
+        "a.lee",
+        "Accounts Payable",
+        "vend0r-payments.example",
+        "urgent_wire_invoice_4431.pdf",
+        "$184,500",
+        "auto-forward external mailbox rule",
+    ),
+    "WL-INC-004": (
+        "CLOUD-STORAGE-01",
+        "svc-data-export",
+        "Data Operations",
+        "customer-export-archive",
+        "anonymous read enabled",
+        "exports/q4/",
+        "customer_contacts_q4.csv",
+        "anonymous download burst",
+    ),
+    "WL-INC-005": (
+        "ENG-117",
+        "r.kim",
+        "Engineering",
+        "updater_service.exe",
+        "cdn-update-check.example",
+        "repeated lookups every 60 seconds",
+        "198.51.100.42",
+        "scheduled task created",
+    ),
 }
 
 
@@ -181,6 +251,34 @@ class ScenarioBankTests(unittest.TestCase):
 
                 self.assertEqual(finding.evidence[0].category, expected_category)
 
+    def test_role_detail_bank_covers_all_scenarios_and_roles(self) -> None:
+        expected_roles = {
+            "triage",
+            "threat_intel",
+            "forensics",
+            "compliance",
+            "commander",
+        }
+
+        self.assertEqual(set(ROLE_SCENARIO_DETAIL_BANK), set(EXPECTED_SCENARIOS))
+        for incident_id, required_values in EXPECTED_DETAIL_BANK_VALUES.items():
+            with self.subTest(incident_id=incident_id):
+                scenario_bank = ROLE_SCENARIO_DETAIL_BANK[incident_id]
+                self.assertEqual(set(scenario_bank), expected_roles)
+
+                detail_text = "\n".join(
+                    detail
+                    for role_details in scenario_bank.values()
+                    for detail in role_details
+                )
+                for value in required_values:
+                    self.assertIn(value, detail_text)
+
+                for role, role_details in scenario_bank.items():
+                    with self.subTest(incident_id=incident_id, role=role):
+                        self.assertGreaterEqual(len(role_details), 2)
+                        self.assertTrue(all(detail.strip() for detail in role_details))
+
     def test_new_scenario_actions_are_scenario_aware(self) -> None:
         for incident_id, expected_actions in EXPECTED_SCENARIO_ACTIONS.items():
             with self.subTest(incident_id=incident_id):
@@ -233,7 +331,93 @@ class ScenarioBankTests(unittest.TestCase):
                 self.assertIn(incident.affected_host, triage_output.summary)
                 self.assertIn(incident.affected_user, triage_output.summary)
                 self.assertIn(incident.department, triage_output.summary)
-                self.assertIn(incident.summary, triage_output.summary)
+
+    def test_triage_threat_intel_forensics_summaries_are_distinct(self) -> None:
+        summary_roles = ("triage", "threat_intel", "forensics")
+
+        for incident_id in EXPECTED_SCENARIOS:
+            with self.subTest(incident_id=incident_id):
+                with tempfile.TemporaryDirectory() as state_dir:
+                    runtime = build_runtime_from_settings(
+                        dry_run=True,
+                        incident_id=incident_id,
+                        state_dir=state_dir,
+                        run_id=f"distinct-summary-{incident_id.lower()}",
+                        settings_obj=self._settings_without_provider_keys(),
+                    )
+
+                    state = asyncio.run(runtime.run_until_complete())
+
+                summaries = [
+                    state.role_outputs[role].summary
+                    for role in summary_roles
+                ]
+
+                self.assertEqual(len(set(summaries)), len(summary_roles))
+                self.assertEqual(state.role_outputs["commander"].handoff_roles, [])
+
+    def test_storage_and_dns_role_summaries_preserve_scenario_detail(self) -> None:
+        summary_roles = ("triage", "threat_intel", "forensics")
+
+        for incident_id, expected_indicators in EXPECTED_SUMMARY_INDICATORS.items():
+            with self.subTest(incident_id=incident_id):
+                with tempfile.TemporaryDirectory() as state_dir:
+                    runtime = build_runtime_from_settings(
+                        dry_run=True,
+                        incident_id=incident_id,
+                        state_dir=state_dir,
+                        run_id=f"summary-detail-{incident_id.lower()}",
+                        settings_obj=self._settings_without_provider_keys(),
+                    )
+
+                    state = asyncio.run(runtime.run_until_complete())
+
+                summaries = [
+                    state.role_outputs[role].summary
+                    for role in summary_roles
+                ]
+                summary_text = "\n".join(summaries)
+
+                self.assertEqual(len(set(summaries)), len(summary_roles))
+                for indicator in expected_indicators:
+                    with self.subTest(incident_id=incident_id, indicator=indicator):
+                        self.assertIn(indicator, summary_text)
+
+    def test_role_summaries_do_not_leak_unrelated_scenario_indicators(self) -> None:
+        summary_roles = ("triage", "threat_intel", "forensics")
+        indicator_values_by_incident = {
+            incident_id: {
+                value
+                for value in SCENARIO_REGISTRY[incident_id]["indicators"].values()
+                if len(str(value)) > 3
+            }
+            for incident_id in EXPECTED_SCENARIOS
+        }
+
+        for incident_id in EXPECTED_SCENARIOS:
+            with self.subTest(incident_id=incident_id):
+                with tempfile.TemporaryDirectory() as state_dir:
+                    runtime = build_runtime_from_settings(
+                        dry_run=True,
+                        incident_id=incident_id,
+                        state_dir=state_dir,
+                        run_id=f"summary-leakage-{incident_id.lower()}",
+                        settings_obj=self._settings_without_provider_keys(),
+                    )
+
+                    state = asyncio.run(runtime.run_until_complete())
+
+                summary_text = "\n".join(
+                    state.role_outputs[role].summary
+                    for role in summary_roles
+                )
+                current_values = indicator_values_by_incident[incident_id]
+
+                for other_incident_id, other_values in indicator_values_by_incident.items():
+                    if other_incident_id == incident_id:
+                        continue
+                    for value in other_values - current_values:
+                        self.assertNotIn(str(value), summary_text)
 
     def test_new_scenario_dry_runs_do_not_leak_wl_inc_001_indicators(self) -> None:
         for incident_id in ("WL-INC-002", "WL-INC-003", "WL-INC-004", "WL-INC-005"):

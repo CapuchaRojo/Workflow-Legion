@@ -15,6 +15,7 @@ from app.services.deterministic_agents import (
     build_forensics_finding,
     build_threat_intel_finding,
     build_triage_finding,
+    role_scenario_details,
 )
 from app.services.llm_provider_router import ProviderConfig, resolve_aimlapi_base_url
 
@@ -277,9 +278,11 @@ class AutonomousReasoningProvider:
             role=definition.role,
             provider_name=provider_config.name,
             provider_mode="provider_live",
-            summary=_normalize_text(
+            summary=_normalize_role_summary(
                 parsed.get("summary"),
                 fallback_output.summary,
+                definition,
+                context,
             ),
             evidence=_normalize_text_list(
                 parsed.get("evidence"),
@@ -407,6 +410,10 @@ def _build_provider_prompt(
     baseline_evidence = "\n".join(
         f"- {item}" for item in fallback_output.evidence
     )
+    role_details = "\n".join(
+        f"- {item}"
+        for item in role_scenario_details(incident.incident_id, definition.role)
+    )
     return (
         f"Incident: {incident.incident_id}\n"
         f"Title: {incident.title}\n"
@@ -427,10 +434,14 @@ def _build_provider_prompt(
         "provided below.\n"
         "- Treat breach, compromise, and exfiltration as unconfirmed possibilities "
         "unless the supplied evidence explicitly confirms them.\n"
+        "- Make summary one role-specific sentence grounded in concrete "
+        "scenario indicators; do not only repeat the incident Summary or an "
+        "upstream role summary.\n"
         f"- Keep band_message at or below {MAX_BAND_TASK_POST_CHARS} characters.\n"
         "- Use no more than 5 evidence items and 4 recommended actions.\n"
         "- Make the Band handoff explicit only to the listed handoff targets.\n"
         f"Upstream context:\n{upstream or '- none'}\n"
+        f"Role scenario detail options:\n{role_details or '- none'}\n"
         f"Deterministic baseline summary:\n{fallback_output.summary}\n"
         f"Deterministic baseline evidence:\n{baseline_evidence or '- none'}\n"
     )
@@ -567,6 +578,72 @@ def _normalize_text(value: Any, fallback: str) -> str:
         return fallback
     normalized = value.strip()
     return normalized or fallback
+
+
+def _normalize_role_summary(
+    value: Any,
+    fallback: str,
+    definition: RoleDefinition,
+    context: AutonomousRoleContext,
+) -> str:
+    normalized = _normalize_text(value, fallback)
+    if _summary_needs_role_specific_fallback(normalized, definition, context):
+        return fallback
+    return normalized
+
+
+def _summary_needs_role_specific_fallback(
+    summary: str,
+    definition: RoleDefinition,
+    context: AutonomousRoleContext,
+) -> bool:
+    if definition.role == "commander":
+        return False
+
+    normalized = _comparison_text(summary)
+    incident = context.incident
+    generic_summaries = {
+        _comparison_text(incident.summary),
+        _comparison_text(incident.title),
+    }
+    upstream_summaries = {
+        _comparison_text(item) for item in context.upstream_summaries.values()
+    }
+    return (
+        normalized in generic_summaries
+        or normalized in upstream_summaries
+        or not _summary_has_scenario_anchor(summary, definition, context)
+    )
+
+
+def _comparison_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().lower()).strip(" .")
+
+
+def _summary_has_scenario_anchor(
+    summary: str,
+    definition: RoleDefinition,
+    context: AutonomousRoleContext,
+) -> bool:
+    incident = context.incident
+    summary_text = _comparison_text(summary)
+    anchors = [
+        incident.affected_host,
+        incident.affected_user,
+        *(str(value) for value in incident.indicators.values()),
+    ]
+    if definition.role in ("compliance", "commander"):
+        anchors.append(incident.department)
+
+    expanded_anchors: set[str] = set()
+    for anchor in anchors:
+        normalized = _comparison_text(anchor)
+        if len(normalized) >= 4:
+            expanded_anchors.add(normalized)
+        if normalized.endswith(".exe"):
+            expanded_anchors.add(normalized.removesuffix(".exe"))
+
+    return any(anchor in summary_text for anchor in expanded_anchors)
 
 
 def _normalize_text_list(

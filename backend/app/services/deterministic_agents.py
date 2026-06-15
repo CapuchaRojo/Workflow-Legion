@@ -11,6 +11,303 @@ def band_mention(handle: str) -> str:
     return f"@{str(handle).strip().removeprefix('@')}"
 
 
+ROLE_SCENARIO_DETAIL_BANK = {
+    "WL-INC-001": {
+        "triage": [
+            (
+                "High-severity Suspicious PowerShell Activity and Possible Data "
+                "Exfiltration triage on FIN-042 for j.morgan: powershell.exe "
+                "launched invoice_update.exe and "
+                "finance_q4_forecast.xlsx access needs Threat Intel and Forensics review."
+            ),
+            (
+                "Route failed logins and outbound 185.199.108.153 context for "
+                "parallel indicator and timeline review; exfiltration remains unconfirmed."
+            ),
+        ],
+        "threat_intel": [
+            (
+                "Indicator context: invoice_update.exe, failed logins, and outbound "
+                "185.199.108.153 after powershell.exe activity are suspicious by "
+                "scenario evidence; exfiltration remains unconfirmed."
+            ),
+            (
+                "Treat FIN-042 PowerShell indicators as context-risk signals for "
+                "Finance governance review, not proof of confirmed compromise."
+            ),
+        ],
+        "forensics": [
+            (
+                "Evidence timeline links j.morgan on FIN-042, powershell.exe, "
+                "invoice_update.exe, finance_q4_forecast.xlsx access, failed "
+                "logins, and outbound 185.199.108.153 traffic during suspected "
+                "finance-data exposure review."
+            ),
+            (
+                "Preserve endpoint, authentication, file-access, and proxy logs "
+                "before validating whether finance_q4_forecast.xlsx exposure occurred."
+            ),
+        ],
+        "compliance": [
+            (
+                "Finance data exposure risk for FIN-042 and j.morgan requires "
+                "evidence retention, management escalation, and review of "
+                "finance_q4_forecast.xlsx access; this is not legal advice."
+            ),
+            (
+                "Retain PowerShell, failed-login, file-access, and outbound "
+                "185.199.108.153 evidence while scope is validated."
+            ),
+        ],
+        "commander": [
+            (
+                "Commander decision: contain FIN-042, protect j.morgan credentials, "
+                "preserve powershell.exe, invoice_update.exe, finance_q4_forecast.xlsx, "
+                "and 185.199.108.153 evidence, and validate scope before external claims."
+            ),
+            (
+                "No downstream handoff; continue containment and evidence preservation "
+                "while exfiltration remains unconfirmed."
+            ),
+        ],
+    },
+    "WL-INC-002": {
+        "triage": [
+            (
+                "High-severity Credential Stuffing and Impossible Travel triage on "
+                "IDP-EDGE-01 for s.patel in Finance: 148 failed logins, repeated "
+                "denied MFA pushes, and one successful session need parallel review."
+            ),
+            (
+                "Route 203.0.113.77 and Singapore to Chicago within 11 minutes "
+                "travel context to Threat Intel and Forensics."
+            ),
+        ],
+        "threat_intel": [
+            (
+                "Indicator context: 148 failed logins from 203.0.113.77 plus "
+                "Singapore to Chicago within 11 minutes indicate identity-abuse "
+                "risk, not confirmed compromise."
+            ),
+            (
+                "Repeated denied MFA pushes followed by one successful session "
+                "suggest MFA-fatigue pressure requiring Finance access review."
+            ),
+        ],
+        "forensics": [
+            (
+                "Evidence timeline links s.patel, 148 failed logins, repeated "
+                "denied MFA pushes, one successful session, and impossible travel "
+                "on IDP-EDGE-01."
+            ),
+            (
+                "Preserve identity logs, MFA prompt records, session metadata, "
+                "and 203.0.113.77 source activity for scope validation."
+            ),
+        ],
+        "compliance": [
+            (
+                "Finance identity exposure risk for s.patel requires evidence "
+                "retention, access review, MFA-fatigue escalation, and management "
+                "notification; this is not legal advice."
+            ),
+            (
+                "Review the one successful session after failures before any "
+                "external reporting decision."
+            ),
+        ],
+        "commander": [
+            (
+                "Commander decision: disable s.patel suspicious session, reset "
+                "credentials, preserve IDP-EDGE-01, 203.0.113.77, MFA, and "
+                "impossible-travel evidence, and validate scope."
+            ),
+            (
+                "No downstream handoff; contain identity access while compromise "
+                "remains unconfirmed."
+            ),
+        ],
+    },
+    "WL-INC-003": {
+        "triage": [
+            (
+                "High-severity Vendor Invoice Fraud / Business Email Compromise "
+                "triage on MAIL-SEC-02 for a.lee in Accounts Payable: "
+                "vend0r-payments.example, urgent_wire_invoice_4431.pdf, and "
+                "forwarding behavior need parallel review."
+            ),
+            (
+                "Route the $184,500 payment request and auto-forward external "
+                "mailbox rule to Threat Intel and Forensics."
+            ),
+        ],
+        "threat_intel": [
+            (
+                "Indicator context: vend0r-payments.example, urgent_wire_invoice_4431.pdf, "
+                "$184,500 urgency, and the mailbox rule indicate invoice-fraud "
+                "risk requiring out-of-band validation before payment action."
+            ),
+            (
+                "The lookalike sender domain is suspicious by scenario context, "
+                "but payment fraud is not independently confirmed."
+            ),
+        ],
+        "forensics": [
+            (
+                "Evidence timeline links a.lee, MAIL-SEC-02, vend0r-payments.example, "
+                "urgent_wire_invoice_4431.pdf, $184,500, and the auto-forward "
+                "external mailbox rule activity for payment-change validation."
+            ),
+            (
+                "Preserve mailbox, message trace, invoice attachment, and forwarding "
+                "rule evidence before validating payment-change scope."
+            ),
+        ],
+        "compliance": [
+            (
+                "Accounts Payable invoice-fraud risk involving a.lee requires "
+                "mailbox preservation, payment-change escalation, and management "
+                "review; this is not legal advice."
+            ),
+            (
+                "Retain vend0r-payments.example, urgent_wire_invoice_4431.pdf, "
+                "$184,500, and forwarding-rule evidence for audit review."
+            ),
+        ],
+        "commander": [
+            (
+                "Commander decision: preserve a.lee mailbox evidence, disable "
+                "the forwarding rule, verify the $184,500 payment change out-of-band, "
+                "and validate scope."
+            ),
+            (
+                "No downstream handoff; treat the BEC scenario as suspected until "
+                "payment and mailbox evidence are validated."
+            ),
+        ],
+    },
+    "WL-INC-004": {
+        "triage": [
+            (
+                "High-severity Cloud Storage Exposure / Public Bucket triage on "
+                "CLOUD-STORAGE-01 for svc-data-export in Data Operations: "
+                "customer-export-archive has anonymous read enabled for "
+                "exports/q4/customer_contacts_q4.csv."
+            ),
+            (
+                "Route anonymous download burst activity against customer-export-archive "
+                "to Threat Intel and Forensics for exposure validation."
+            ),
+        ],
+        "threat_intel": [
+            (
+                "Indicator context: anonymous read enabled plus anonymous download "
+                "burst against customer-export-archive suggest public exposure "
+                "risk for exports/q4/customer_contacts_q4.csv during exposure validation."
+            ),
+            (
+                "Public ACL and anonymous access patterns are suspicious by "
+                "scenario evidence, not proof of confirmed data theft."
+            ),
+        ],
+        "forensics": [
+            (
+                "Evidence timeline links svc-data-export, anonymous read enabled, "
+                "exports/q4/customer_contacts_q4.csv, customer-export-archive, "
+                "and anonymous download burst activity for exposure timeline validation."
+            ),
+            (
+                "Preserve cloud access logs, object metadata, ACL history, and "
+                "Data Operations service-account evidence before validating exposure."
+            ),
+        ],
+        "compliance": [
+            (
+                "Data Operations customer export exposure for customer-export-archive "
+                "requires evidence retention, access review, public ACL removal, "
+                "and management escalation; this is not legal advice."
+            ),
+            (
+                "Retain exports/q4/customer_contacts_q4.csv, ACL history, and "
+                "anonymous download burst evidence while scope is validated."
+            ),
+        ],
+        "commander": [
+            (
+                "Commander decision: revoke anonymous read on customer-export-archive, "
+                "protect svc-data-export, preserve exports/q4/customer_contacts_q4.csv "
+                "and download evidence, and validate exposure scope."
+            ),
+            (
+                "No downstream handoff; continue containment and evidence preservation "
+                "while public exposure scope is validated."
+            ),
+        ],
+    },
+    "WL-INC-005": {
+        "triage": [
+            (
+                "High-severity Malware Beacon / Suspicious DNS triage on ENG-117 "
+                "for r.kim in Engineering: updater_service.exe calls "
+                "cdn-update-check.example every 60 seconds with scheduled task created."
+            ),
+            (
+                "Route repeated lookups every 60 seconds and outbound 198.51.100.42 "
+                "activity to Threat Intel and Forensics."
+            ),
+        ],
+        "threat_intel": [
+            (
+                "Indicator context: updater_service.exe using cdn-update-check.example, "
+                "repeated lookups every 60 seconds, and 198.51.100.42 suggests "
+                "beacon-like behavior; malware remains unconfirmed."
+            ),
+            (
+                "Scheduled task created plus periodic DNS is suspicious by scenario "
+                "evidence, not proof of confirmed compromise."
+            ),
+        ],
+        "forensics": [
+            (
+                "Evidence timeline links updater_service.exe on ENG-117, repeated "
+                "lookups every 60 seconds to cdn-update-check.example, 198.51.100.42, "
+                "and scheduled task created."
+            ),
+            (
+                "Preserve DNS telemetry, process lineage, scheduled task artifacts, "
+                "and Engineering workstation evidence before validating persistence."
+            ),
+        ],
+        "compliance": [
+            (
+                "Engineering workstation risk involving updater_service.exe and "
+                "cdn-update-check.example requires evidence retention, containment "
+                "review, and management escalation; this is not legal advice."
+            ),
+            (
+                "Retain DNS, process, outbound 198.51.100.42, and scheduled task "
+                "evidence while scope is validated."
+            ),
+        ],
+        "commander": [
+            (
+                "Commander decision: isolate ENG-117, protect r.kim, preserve "
+                "updater_service.exe, cdn-update-check.example, 198.51.100.42, "
+                "and scheduled task evidence, and validate scope during investigation."
+            ),
+            (
+                "No downstream handoff; continue containment while malware and "
+                "persistence remain unconfirmed."
+            ),
+        ],
+    },
+}
+
+
+def role_scenario_details(incident_id: str, role: str) -> tuple[str, ...]:
+    return tuple(ROLE_SCENARIO_DETAIL_BANK.get(incident_id, {}).get(role, ()))
+
+
 def build_triage_finding(
     incident: IncidentState,
     threat_handle: str,
@@ -21,13 +318,7 @@ def build_triage_finding(
         status="complete",
         severity="high",
         confidence="high",
-        summary=(
-            f"Initial triage classifies {incident.incident_id} as high severity "
-            f"for {incident.title} affecting {incident.affected_host}, user "
-            f"{incident.affected_user}, and {incident.department}. Breach, "
-            "exfiltration, or compromise remain unconfirmed pending downstream "
-            f"review. Scenario summary: {incident.summary}"
-        ),
+        summary=_triage_summary(incident),
         evidence=[
             EvidenceItem(
                 evidence_id="EV-TG-001",
@@ -67,12 +358,7 @@ def build_threat_intel_finding(
         status="complete",
         severity="high",
         confidence="medium",
-        summary=(
-            f"Threat Intel reviewed {incident.incident_id} indicators for "
-            f"{incident.title}. {primary_indicator} is suspicious by context "
-            "within the supplied scenario evidence, but no live IOC lookup was "
-            "performed and maliciousness is not independently confirmed."
-        ),
+        summary=_threat_intel_summary(incident),
         evidence=[
             EvidenceItem(
                 evidence_id="EV-TI-001",
@@ -119,12 +405,7 @@ def build_forensics_finding(
         status="complete",
         severity="high",
         confidence="high",
-        summary=(
-            f"Forensics reconstructed a scenario timeline for {incident.incident_id}: "
-            f"{incident.title} involving {incident.affected_host}, "
-            f"{incident.affected_user}, and indicators including "
-            f"{_indicator_sentence(incident)}."
-        ),
+        summary=_forensics_summary(incident),
         evidence=[
             EvidenceItem(
                 evidence_id="EV-FO-001",
@@ -177,12 +458,7 @@ def build_compliance_finding(
         status="complete",
         severity="high",
         confidence="medium",
-        summary=(
-            f"Compliance review flags audit sensitivity for {incident.incident_id} "
-            f"because the affected user and assets belong to {incident.department}. "
-            "This is not legal or regulatory advice; evidence retention and "
-            "management escalation are recommended while scope is validated."
-        ),
+        summary=_compliance_summary(incident),
         evidence=[
             EvidenceItem(
                 evidence_id="EV-CO-001",
@@ -211,12 +487,7 @@ def build_commander_finding(incident: IncidentState) -> AgentFinding:
         status="complete",
         severity="high",
         confidence="high",
-        summary=(
-            f"Commander decision: treat {incident.incident_id} as a high-severity "
-            f"suspected incident involving {incident.title} for "
-            f"{incident.affected_host}. Contain the affected surface, protect "
-            "credentials, and continue scope validation."
-        ),
+        summary=_commander_summary(incident),
         recommended_actions=_commander_actions(incident),
         band_message=(
             f"Commander final decision for {incident.incident_id}: HIGH severity. "
@@ -242,6 +513,238 @@ def run_deterministic_workflow(
         build_commander_finding(incident),
     ]
     return findings
+
+
+def _triage_summary(incident: IncidentState) -> str:
+    banked_summary = _scenario_role_summary(incident, "triage")
+    if banked_summary:
+        return banked_summary
+
+    return (
+        f"High-severity {incident.title} on {incident.affected_host} for "
+        f"{incident.affected_user} in {incident.department}; {incident.summary} "
+        f"Route Threat Intel and Forensics around {_triage_focus(incident)}."
+    )
+
+
+def _threat_intel_summary(incident: IncidentState) -> str:
+    banked_summary = _scenario_role_summary(incident, "threat_intel")
+    if banked_summary:
+        return banked_summary
+
+    bucket = _indicator_value(incident, "bucket")
+    public_acl = _indicator_value(incident, "public_acl")
+    access_pattern = _indicator_value(incident, "access_pattern")
+    if bucket and public_acl and access_pattern:
+        return (
+            f"Indicator context: {public_acl} plus {access_pattern} against "
+            f"{bucket} suggest public exposure risk for {_object_path(incident)}."
+        )
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    dns_rate = _indicator_value(incident, "dns_rate")
+    destination_ip = _indicator_value(incident, "destination_ip")
+    if process and domain and dns_rate:
+        return (
+            f"Indicator context: {process} using {domain}, {dns_rate}, and "
+            f"{destination_ip or 'the supplied destination'} suggests beacon-like "
+            "behavior; malware remains unconfirmed."
+        )
+
+    failed_count = _indicator_value(incident, "failed_login_count")
+    source_ip = _indicator_value(incident, "source_ip")
+    impossible_travel = _indicator_value(incident, "impossible_travel")
+    if failed_count and source_ip:
+        return (
+            f"Indicator context: {failed_count} failed logins from {source_ip} "
+            f"plus {impossible_travel or 'impossible travel'} indicate identity "
+            "abuse risk, not confirmed compromise."
+        )
+
+    sender_domain = _indicator_value(incident, "sender_domain")
+    invoice_file = _indicator_value(incident, "invoice_file")
+    mailbox_rule = _indicator_value(incident, "mailbox_rule")
+    if sender_domain and invoice_file:
+        return (
+            f"Indicator context: {sender_domain}, {invoice_file}, and "
+            f"{mailbox_rule or 'mailbox forwarding'} indicate invoice-fraud risk "
+            "requiring out-of-band validation."
+        )
+
+    primary_indicator = _primary_indicator(incident)
+    secondary_indicator = _secondary_indicator(incident)
+    return (
+        f"Indicator context: {primary_indicator} plus {secondary_indicator} are "
+        "suspicious by supplied scenario evidence, with maliciousness unconfirmed."
+    )
+
+
+def _forensics_summary(incident: IncidentState) -> str:
+    banked_summary = _scenario_role_summary(incident, "forensics")
+    if banked_summary:
+        return banked_summary
+
+    bucket = _indicator_value(incident, "bucket")
+    public_acl = _indicator_value(incident, "public_acl")
+    access_pattern = _indicator_value(incident, "access_pattern")
+    if bucket and public_acl and access_pattern:
+        return (
+            f"Evidence timeline links {incident.affected_user}, {public_acl}, "
+            f"{_object_path(incident)}, and {access_pattern} on "
+            f"{incident.affected_host}."
+        )
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    dns_rate = _indicator_value(incident, "dns_rate")
+    destination_ip = _indicator_value(incident, "destination_ip")
+    persistence = _indicator_value(incident, "persistence")
+    if process and domain and dns_rate:
+        return (
+            f"Evidence timeline links {process} on {incident.affected_host}, "
+            f"{dns_rate} to {domain}, {destination_ip or 'outbound traffic'}, and "
+            f"{persistence or 'persistence activity'}."
+        )
+
+    failed_count = _indicator_value(incident, "failed_login_count")
+    source_ip = _indicator_value(incident, "source_ip")
+    mfa_pushes = _indicator_value(incident, "mfa_pushes")
+    if failed_count and source_ip:
+        return (
+            f"Evidence timeline links {incident.affected_user}, {failed_count} "
+            f"failed logins from {source_ip}, {mfa_pushes or 'MFA prompts'}, and "
+            f"{_indicator_value(incident, 'successful_login') or 'session review'}."
+        )
+
+    sender_domain = _indicator_value(incident, "sender_domain")
+    invoice_file = _indicator_value(incident, "invoice_file")
+    mailbox_rule = _indicator_value(incident, "mailbox_rule")
+    if sender_domain and invoice_file:
+        return (
+            f"Evidence timeline links {incident.affected_user}, {sender_domain}, "
+            f"{invoice_file}, and {mailbox_rule or 'mailbox forwarding behavior'} "
+            f"on {incident.affected_host}."
+        )
+
+    return (
+        f"Evidence timeline links {incident.affected_host}, "
+        f"{incident.affected_user}, {_file_observable(incident)}, and "
+        f"{_network_observable(incident)}."
+    )
+
+
+def _compliance_summary(incident: IncidentState) -> str:
+    banked_summary = _scenario_role_summary(incident, "compliance")
+    if banked_summary:
+        return banked_summary
+
+    bucket = _indicator_value(incident, "bucket")
+    if bucket:
+        return (
+            f"{incident.department} customer export exposure for {bucket} requires "
+            "evidence retention, access review, public ACL removal, and management "
+            "escalation while scope is validated."
+        )
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    if process and domain:
+        return (
+            f"{incident.department} workstation activity involving {process} and "
+            f"{domain} requires evidence retention, containment review, and "
+            "management escalation while scope is validated."
+        )
+
+    sender_domain = _indicator_value(incident, "sender_domain")
+    mailbox_rule = _indicator_value(incident, "mailbox_rule")
+    if sender_domain:
+        return (
+            f"{incident.department} invoice-fraud risk involving {sender_domain} "
+            f"and {mailbox_rule or 'mailbox changes'} requires evidence retention "
+            "and payment-change escalation."
+        )
+
+    failed_count = _indicator_value(incident, "failed_login_count")
+    if failed_count:
+        return (
+            f"{incident.department} identity activity with {failed_count} failed "
+            "logins requires evidence retention, access review, and management "
+            "escalation while scope is validated."
+        )
+
+    return (
+        f"{incident.department} activity involving {incident.affected_user} on "
+        f"{incident.affected_host} requires evidence retention and management "
+        "escalation while scope is validated."
+    )
+
+
+def _commander_summary(incident: IncidentState) -> str:
+    banked_summary = _scenario_role_summary(incident, "commander")
+    if banked_summary:
+        return banked_summary
+
+    bucket = _indicator_value(incident, "bucket")
+    if bucket:
+        return (
+            f"Commander decision: contain {bucket} on {incident.affected_host}, "
+            f"protect {incident.affected_user} credentials, preserve "
+            f"{_object_path(incident)} evidence, and validate exposure scope."
+        )
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    if process and domain:
+        return (
+            f"Commander decision: contain {incident.affected_host}, protect "
+            f"{incident.affected_user}, preserve {process}/{domain} telemetry, "
+            "and validate beaconing scope."
+        )
+
+    return (
+        f"Commander decision: treat {incident.incident_id} as high severity for "
+        f"{incident.title} on {incident.affected_host}; contain affected surface, "
+        "protect credentials, and validate scope."
+    )
+
+
+def _scenario_role_summary(incident: IncidentState, role: str) -> str | None:
+    details = role_scenario_details(incident.incident_id, role)
+    return details[0] if details else None
+
+
+def _triage_focus(incident: IncidentState) -> str:
+    bucket = _indicator_value(incident, "bucket")
+    public_acl = _indicator_value(incident, "public_acl")
+    if bucket and public_acl:
+        return f"{bucket} with {public_acl} for {_object_path(incident)}"
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    dns_rate = _indicator_value(incident, "dns_rate")
+    if process and domain and dns_rate:
+        return f"{process}, {domain}, and {dns_rate}"
+
+    failed_count = _indicator_value(incident, "failed_login_count")
+    source_ip = _indicator_value(incident, "source_ip")
+    if failed_count and source_ip:
+        return f"{failed_count} failed logins from {source_ip}"
+
+    sender_domain = _indicator_value(incident, "sender_domain")
+    invoice_file = _indicator_value(incident, "invoice_file")
+    if sender_domain and invoice_file:
+        return f"{sender_domain} and {invoice_file}"
+
+    return _indicator_sentence(incident)
+
+
+def _object_path(incident: IncidentState) -> str:
+    exposed_file = _indicator_value(incident, "exposed_file")
+    object_prefix = _indicator_value(incident, "object_prefix")
+    if exposed_file and object_prefix:
+        return f"{object_prefix.rstrip('/')}/{exposed_file}"
+    return exposed_file or object_prefix or _file_observable(incident)
 
 
 def _indicator_sentence(incident: IncidentState, limit: int = 3) -> str:

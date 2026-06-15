@@ -24,7 +24,7 @@ from app.services.autonomous_role_agents import (  # noqa: E402
 from app.services.band_agent_registry import (  # noqa: E402
     build_band_remote_agent_registry,
 )
-from app.services.incident_repository import build_demo_incident  # noqa: E402
+from app.services.incident_repository import build_demo_incident, build_incident  # noqa: E402
 from app.services.provider_role_validation import (  # noqa: E402
     evaluate_provider_role_output,
     render_provider_role_validation_report,
@@ -111,6 +111,7 @@ class ProviderRoleValidationTests(unittest.TestCase):
             self.assertIn("unconfirmed possibilities", prompt)
             self.assertIn("Keep band_message at or below 600 characters", prompt)
             self.assertIn("Make the Band handoff explicit", prompt)
+            self.assertIn("Role scenario detail options", prompt)
             self.assertIn("Deterministic baseline evidence", prompt)
 
     def test_all_three_roles_fall_back_without_provider_credentials(self) -> None:
@@ -192,6 +193,80 @@ class ProviderRoleValidationTests(unittest.TestCase):
                 json.dumps(fake_client.request_payload),
             )
 
+    def test_generic_provider_summary_uses_role_specific_baseline(self) -> None:
+        incident = build_incident("WL-INC-004")
+        provider = AutonomousReasoningProvider(
+            provider_mode="auto",
+            settings_obj=self.settings,
+        )
+
+        for role in PROVIDER_VALIDATION_ROLES:
+            with self.subTest(role=role):
+                context = self._context(role, incident=incident)
+                fallback = build_deterministic_role_output(
+                    ROLE_DEFINITIONS[role],
+                    context,
+                )
+                fake_client = _FakeAsyncClient(
+                    json.dumps(self._generic_storage_provider_payload(incident))
+                )
+
+                with patch(
+                    "app.services.autonomous_role_agents.httpx.AsyncClient",
+                    return_value=fake_client,
+                ):
+                    output = asyncio.run(
+                        provider.decide(ROLE_DEFINITIONS[role], context)
+                    )
+
+                self.assertEqual(output.provider_mode, "provider_live")
+                self.assertEqual(output.summary, fallback.summary)
+                self.assertNotEqual(output.summary, incident.summary)
+                self.assertTrue(
+                    any(
+                        indicator in output.summary
+                        for indicator in (
+                            "customer-export-archive",
+                            "anonymous read",
+                            "customer_contacts_q4.csv",
+                        )
+                    )
+                )
+
+    def test_upstream_duplicate_provider_summary_uses_role_baseline(self) -> None:
+        provider = AutonomousReasoningProvider(
+            provider_mode="auto",
+            settings_obj=self.settings,
+        )
+        triage_context = self._context("triage")
+        triage_output = build_deterministic_role_output(
+            ROLE_DEFINITIONS["triage"],
+            triage_context,
+        )
+        threat_context = self._context(
+            "threat_intel",
+            upstream_summaries={"triage": triage_output.summary},
+        )
+        threat_fallback = build_deterministic_role_output(
+            ROLE_DEFINITIONS["threat_intel"],
+            threat_context,
+        )
+        payload = self._safe_provider_payload("threat_intel")
+        payload["summary"] = triage_output.summary
+        fake_client = _FakeAsyncClient(json.dumps(payload))
+
+        with patch(
+            "app.services.autonomous_role_agents.httpx.AsyncClient",
+            return_value=fake_client,
+        ):
+            output = asyncio.run(
+                provider.decide(ROLE_DEFINITIONS["threat_intel"], threat_context)
+            )
+
+        self.assertEqual(output.provider_mode, "provider_live")
+        self.assertEqual(output.summary, threat_fallback.summary)
+        self.assertNotEqual(output.summary, triage_output.summary)
+
     def test_unsupported_provider_claim_uses_deterministic_fallback(self) -> None:
         role = "triage"
         context = self._context(role)
@@ -266,9 +341,10 @@ class ProviderRoleValidationTests(unittest.TestCase):
         self,
         role: str,
         upstream_summaries: dict[str, str] | None = None,
+        incident=None,
     ) -> AutonomousRoleContext:
         return AutonomousRoleContext(
-            incident=self.incident,
+            incident=incident or self.incident,
             run_id="provider-test",
             source_message_ids=(f"m-{role}",),
             upstream_summaries=upstream_summaries or {},
@@ -333,6 +409,25 @@ class ProviderRoleValidationTests(unittest.TestCase):
             },
         }
         return payloads[role]
+
+    def _generic_storage_provider_payload(self, incident) -> dict:
+        return {
+            "summary": incident.summary,
+            "evidence": [
+                (
+                    "customer-export-archive indicator reviewed for WL-INC-004 "
+                    "using supplied scenario evidence."
+                )
+            ],
+            "recommended_actions": [
+                "Preserve customer-export-archive evidence.",
+                "Continue scope validation.",
+            ],
+            "band_message": (
+                "WL-INC-004 update: customer-export-archive requires continued "
+                "role review and handoff."
+            ),
+        }
 
 
 @unittest.skipUnless(

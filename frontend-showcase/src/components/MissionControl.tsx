@@ -330,17 +330,17 @@ function summaryForRoleCard(
   state: MissionControlState,
 ): string {
   const incidentId = state.incident_id;
-  const targets = handoffTargetsText(role);
+  const summary = role.summary.trim();
 
   switch (role.role) {
     case "triage":
-      return `Classified ${incidentId} and routed parallel investigation to ${targets}.`;
+      return summary || `Classification pending for ${incidentId}.`;
     case "threat_intel":
-      return `Reviewed indicator context for ${incidentId} and handed governance risk to ${targets}.`;
+      return threatIntelSummaryForRoleCard(summary, state);
     case "forensics":
-      return `Built evidence/timeline context for ${incidentId} and handed findings to ${targets}.`;
+      return summary || `Evidence timeline pending for ${incidentId}.`;
     case "compliance":
-      return `Reviewed audit/escalation sensitivity for ${incidentId} and requested ${targets} decision.`;
+      return summary || `Audit/escalation review pending for ${incidentId}.`;
     case "commander":
       return (
         "Final decision posted: contain affected surface, protect credentials, " +
@@ -351,6 +351,18 @@ function summaryForRoleCard(
   }
 }
 
-function handoffTargetsText(role: MissionControlRole): string {
-  return role.handoff_targets.length ? role.handoff_targets.join(" + ") : "the next role";
+function threatIntelSummaryForRoleCard(
+  summary: string,
+  state: MissionControlState,
+): string {
+  if (!summary) {
+    return `Indicator context pending for ${state.incident_id}.`;
+  }
+
+  const triage = state.roles.find((candidate) => candidate.role === "triage");
+  if (triage?.summary.trim() === summary) {
+    return `Indicator context: ${summary}`;
+  }
+
+  return summary;
 }
