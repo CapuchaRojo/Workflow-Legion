@@ -6,7 +6,7 @@ ARG VITE_MISSION_CONTROL_STATUS_URL=https://workflow-legion-production.up.railwa
 ENV VITE_MISSION_CONTROL_STATUS_URL=$VITE_MISSION_CONTROL_STATUS_URL
 
 COPY frontend-showcase/package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN npm install
 
 COPY frontend-showcase/ ./
 RUN npm run build
