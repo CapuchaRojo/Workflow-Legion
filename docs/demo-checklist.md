@@ -44,6 +44,14 @@ Required result:
 - [ ] Demo says no fallback mention-resolution errors were observed.
 - [ ] Demo does not claim autonomous live reasoning beyond the validated deterministic workflow and remote Band identity proof.
 
+## Judge Mode
+
+- [ ] Start the local PowerShell supervisor loop with `--message-limit 75` for the current Band room.
+- [ ] Wait for the terminal `READY` banner before each judge-triggered incident.
+- [ ] Judges post a supported Band trigger such as `@Workflow Triage Remote Agent AUTO:START WL-INC-001`.
+- [ ] Backend completes one incident, exports sanitized Mission Control state, restarts the live Band listener, and waits for the next fresh Band trigger.
+- [ ] Runtime proof JSON and screenshots stay local unless deliberately sanitized and reviewed.
+
 ## Demo Story Validation
 
 - [ ] Incident ID is WL-INC-001.
