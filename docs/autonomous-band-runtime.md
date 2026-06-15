@@ -212,6 +212,36 @@ Then post exactly one Band room message:
 @redhood/workflow-triage-remote-a AUTO:START WL-INC-001
 ```
 
+## Hosted Judge Mode
+
+Hosted judge mode uses the same runtime builder as
+`backend/run_autonomous_agents.py`, wrapped by:
+
+```text
+backend/hosted_runtime.py
+```
+
+Run it from the backend directory:
+
+```cmd
+python -m uvicorn hosted_runtime:app --host 0.0.0.0 --port %PORT%
+```
+
+The hosted entrypoint starts the Band listener in the background and exposes:
+
+```text
+GET /health
+GET /mission-control-status
+```
+
+`/mission-control-status` serves the sanitized Mission Control export only. It
+does not serve raw runtime state, Band chat or room values, agent IDs, API key
+values, raw Band payloads, local `.env` values, proof screenshots, QR links, or
+redemption links.
+
+See `docs/hosted-judge-runtime.md` for deployment placeholders and the hosted
+smoke-test checklist.
+
 Live mode requires:
 
 ```text
