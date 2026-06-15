@@ -111,6 +111,7 @@ class ProviderRoleValidationTests(unittest.TestCase):
             self.assertIn("unconfirmed possibilities", prompt)
             self.assertIn("Keep band_message at or below 600 characters", prompt)
             self.assertIn("Make the Band handoff explicit", prompt)
+            self.assertIn("Role scenario detail options", prompt)
             self.assertIn("Deterministic baseline evidence", prompt)
 
     def test_all_three_roles_fall_back_without_provider_credentials(self) -> None:
@@ -231,6 +232,40 @@ class ProviderRoleValidationTests(unittest.TestCase):
                         )
                     )
                 )
+
+    def test_upstream_duplicate_provider_summary_uses_role_baseline(self) -> None:
+        provider = AutonomousReasoningProvider(
+            provider_mode="auto",
+            settings_obj=self.settings,
+        )
+        triage_context = self._context("triage")
+        triage_output = build_deterministic_role_output(
+            ROLE_DEFINITIONS["triage"],
+            triage_context,
+        )
+        threat_context = self._context(
+            "threat_intel",
+            upstream_summaries={"triage": triage_output.summary},
+        )
+        threat_fallback = build_deterministic_role_output(
+            ROLE_DEFINITIONS["threat_intel"],
+            threat_context,
+        )
+        payload = self._safe_provider_payload("threat_intel")
+        payload["summary"] = triage_output.summary
+        fake_client = _FakeAsyncClient(json.dumps(payload))
+
+        with patch(
+            "app.services.autonomous_role_agents.httpx.AsyncClient",
+            return_value=fake_client,
+        ):
+            output = asyncio.run(
+                provider.decide(ROLE_DEFINITIONS["threat_intel"], threat_context)
+            )
+
+        self.assertEqual(output.provider_mode, "provider_live")
+        self.assertEqual(output.summary, threat_fallback.summary)
+        self.assertNotEqual(output.summary, triage_output.summary)
 
     def test_unsupported_provider_claim_uses_deterministic_fallback(self) -> None:
         role = "triage"
