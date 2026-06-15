@@ -75,6 +75,12 @@ Completed live scenario validation notes for WL-INC-002 through WL-INC-005 are
 tracked in `docs/live-scenario-validation-log.md` without committing raw proof
 artifacts.
 
+Judge mode has also been validated for repeatable Band-triggered demos: a local
+supervisor loop can restart the Band listener after each completed incident so
+judges can trigger the next supported scenario from Band. See
+[`docs/live-scenario-validation-log.md`](docs/live-scenario-validation-log.md)
+and [`docs/demo-checklist.md`](docs/demo-checklist.md).
+
 ## Incident Scenario
 
 Demo incident:

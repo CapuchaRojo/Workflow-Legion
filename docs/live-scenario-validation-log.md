@@ -17,6 +17,40 @@ backend export; it does not coordinate agents.
 | `WL-INC-004` | `WL-INC-004-live-002` | `complete` | All five roles complete. | Triage: AI/ML API `provider_live`; Threat Intel: AI/ML API `deterministic_fallback`; Forensics: AI/ML API `provider_live`; Compliance: Featherless `deterministic_fallback`; Commander: Featherless `deterministic_fallback`. | All five remote Band posts delivered with HTTP 201. | Commander ended terminal with no downstream handoff. |
 | `WL-INC-005` | `WL-INC-005-live-001` | `complete` | All five roles complete. | Triage: AI/ML API `provider_live`; Threat Intel: AI/ML API `provider_live`; Forensics: AI/ML API `deterministic_fallback`; Compliance: Featherless `provider_live`; Commander: Featherless `provider_live`. | All five remote Band posts delivered with HTTP 201. | Commander ended terminal with no downstream handoff. |
 
+## Judge Mode Repeatability
+
+Judge mode is a local PowerShell supervisor loop for repeatable live demos. It
+is not a replacement for the Band/backend architecture: Band remains the
+collaboration fabric and proof surface, and the backend remains the
+deterministic runtime and state machine.
+
+In the validated judge-mode proof, judges posted supported `AUTO:START`
+triggers in Band. The backend ran one incident, exported sanitized Mission
+Control state, then the supervisor restarted the live Band listener and waited
+for the next fresh Band trigger. Use `--message-limit 75` for the current Band
+room, and wait for the terminal `READY` banner before posting the next incident.
+
+Observed consecutive judge-triggered runs:
+
+| Scenario ID | Run ID | Result |
+| --- | --- | --- |
+| `WL-INC-004` | `judge-live-20260614-213549-cycle-1` | Completed through Commander. |
+| `WL-INC-003` | `judge-live-20260614-213749-cycle-2` | Completed through Commander. |
+| `WL-INC-004` | `judge-live-20260614-213951-cycle-3` | Completed through Commander. |
+
+Supported Band trigger examples:
+
+```text
+@Workflow Triage Remote Agent AUTO:START WL-INC-001
+@Workflow Triage Remote Agent AUTO:START WL-INC-002
+@Workflow Triage Remote Agent AUTO:START WL-INC-003
+@Workflow Triage Remote Agent AUTO:START WL-INC-004
+@Workflow Triage Remote Agent AUTO:START WL-INC-005
+```
+
+Runtime proof JSON and screenshots stay local unless they are deliberately
+sanitized and reviewed.
+
 ## Proof Notes
 
 - `WL-INC-002` live Band scenario passed.
