@@ -8,10 +8,14 @@ import {
   type MissionControlState,
 } from "../missionControlState";
 
-const LIVE_STATUS_PATH = "/mission-control-status.json";
+const LOCAL_STATUS_PATH = "/mission-control-status.json";
+const CONFIGURED_STATUS_URL =
+  import.meta.env.VITE_MISSION_CONTROL_STATUS_URL?.trim() ?? "";
 const POLL_INTERVAL_MS = 2500;
 
 type StatusTone = "info" | "warning" | "success" | "danger";
+type MissionControlFeedSource = "hosted" | "local" | "demo";
+type MissionControlFeedPhase = "loading" | "ready" | "error";
 
 const statusLabels: Record<MissionControlRoleStatus, string> = {
   idle: "Idle",
@@ -56,7 +60,8 @@ const roleLensLabels: Record<string, string> = {
 };
 
 export function MissionControl() {
-  const { state, source } = useMissionControlFeed();
+  const { endpointLabel, errorMessage, phase, source, state } =
+    useMissionControlFeed();
   const providerLabels = useMemo(
     () =>
       state.provider_stack
@@ -68,7 +73,8 @@ export function MissionControl() {
     const delivered = state.roles.filter((role) => role.delivery?.delivered).length;
     return `${delivered}/${state.roles.length} Band deliveries`;
   }, [state.roles]);
-  const feedLabel = source === "live" ? "Live export" : "Demo fallback";
+  const feedLabel = feedLabelForSource(source);
+  const feedTone = feedToneFor(source, phase);
 
   return (
     <section className="section mission-control-section" id="mission-control">
@@ -81,10 +87,14 @@ export function MissionControl() {
 
         <div className="mission-shell mission-shell--showcase">
           <div className="mission-feed-strip" aria-label="Mission Control feed status">
-            <span className={`status-dot status-dot--${source === "live" ? "success" : "warning"}`} />
+            <span className={`status-dot status-dot--${feedTone}`} />
             <span>{feedLabel}</span>
-            <span>Polling /mission-control-status.json every 2.5s</span>
+            <span>{feedPhaseLabel(phase)}</span>
+            <span>Polling {endpointLabel} every 2.5s</span>
             <span>No credentials embedded</span>
+            {errorMessage ? (
+              <span className="mission-feed-error">{errorMessage}</span>
+            ) : null}
           </div>
 
           <div className="mission-summary">
@@ -259,19 +269,26 @@ export function MissionControl() {
 
 function useMissionControlFeed(): {
   state: MissionControlState;
-  source: "live" | "demo";
+  source: MissionControlFeedSource;
+  phase: MissionControlFeedPhase;
+  endpointLabel: string;
+  errorMessage: string | null;
 } {
+  const statusUrl = CONFIGURED_STATUS_URL || LOCAL_STATUS_PATH;
+  const usesHostedRuntime = CONFIGURED_STATUS_URL.length > 0;
   const [state, setState] = useState<MissionControlState>(
     demoMissionControlState,
   );
-  const [source, setSource] = useState<"live" | "demo">("demo");
+  const [source, setSource] = useState<MissionControlFeedSource>("demo");
+  const [phase, setPhase] = useState<MissionControlFeedPhase>("loading");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadStatus() {
       try {
-        const response = await fetch(LIVE_STATUS_PATH, {
+        const response = await fetch(statusUrl, {
           cache: "no-store",
         });
         if (!response.ok) {
@@ -285,12 +302,20 @@ function useMissionControlFeed(): {
 
         if (!cancelled) {
           setState(payload);
-          setSource("live");
+          setSource(usesHostedRuntime ? "hosted" : "local");
+          setPhase("ready");
+          setErrorMessage(null);
         }
       } catch {
         if (!cancelled) {
           setState(demoMissionControlState);
           setSource("demo");
+          setPhase("error");
+          setErrorMessage(
+            usesHostedRuntime
+              ? "Hosted runtime unavailable; showing demo fallback."
+              : "Local status export unavailable; showing built-in demo fallback.",
+          );
         }
       }
     }
@@ -302,9 +327,48 @@ function useMissionControlFeed(): {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [statusUrl, usesHostedRuntime]);
 
-  return { state, source };
+  return {
+    endpointLabel: usesHostedRuntime ? "configured hosted endpoint" : LOCAL_STATUS_PATH,
+    errorMessage,
+    phase,
+    source,
+    state,
+  };
+}
+
+function feedLabelForSource(source: MissionControlFeedSource): string {
+  if (source === "hosted") {
+    return "Live hosted runtime";
+  }
+  if (source === "local") {
+    return "Local status export";
+  }
+  return "Demo fallback";
+}
+
+function feedPhaseLabel(phase: MissionControlFeedPhase): string {
+  if (phase === "loading") {
+    return "Loading status";
+  }
+  if (phase === "error") {
+    return "Fetch failed safely";
+  }
+  return "Status loaded";
+}
+
+function feedToneFor(
+  source: MissionControlFeedSource,
+  phase: MissionControlFeedPhase,
+): StatusTone {
+  if (phase === "error") {
+    return "danger";
+  }
+  if (phase === "loading") {
+    return "warning";
+  }
+  return source === "demo" ? "warning" : "success";
 }
 
 function toneForStatus(status: string): StatusTone {
