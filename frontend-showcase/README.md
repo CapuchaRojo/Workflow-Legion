@@ -15,7 +15,15 @@ For local viewing during development:
 npm run dev
 ```
 
-This showcase does not call the backend, does not use Supabase or auth, and does not require environment files or API keys. Mission Control can optionally read a sanitized local JSON file from `public\mission-control-status.json`; if that file is missing, it falls back to built-in demo data.
+This showcase does not use Supabase or auth, and does not require API keys. By default, Mission Control reads a sanitized local JSON file from `public\mission-control-status.json`; if that file is missing, it falls back to built-in demo data.
+
+To point Mission Control at the hosted Railway runtime, set the public Vite endpoint before starting or building, for example in a local frontend env file:
+
+```text
+VITE_MISSION_CONTROL_STATUS_URL=https://workflow-legion-production.up.railway.app/mission-control-status
+```
+
+When this variable is set, Mission Control fetches that sanitized status endpoint and shows a `Live hosted runtime` label. Keep credentials, Band IDs, room IDs, provider keys, and private values out of frontend env files.
 
 ## Mission Control positioning
 
@@ -40,6 +48,8 @@ Then start the showcase:
 cd frontend-showcase
 npm run dev
 ```
+
+For hosted status, set `VITE_MISSION_CONTROL_STATUS_URL` to `https://workflow-legion-production.up.railway.app/mission-control-status`. If the variable is not set, the showcase keeps polling the local `public\mission-control-status.json` fallback.
 
 Band remains the collaboration fabric and proof surface. The frontend is only a Mission Control visualization layer over sanitized runtime status.
 

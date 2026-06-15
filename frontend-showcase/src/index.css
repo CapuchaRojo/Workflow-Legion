@@ -551,6 +551,10 @@ p {
   display: none;
 }
 
+.mission-feed-strip .mission-feed-error {
+  color: var(--red);
+}
+
 .mission-summary,
 .mission-command-grid,
 .mission-layer-grid,
