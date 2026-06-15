@@ -81,6 +81,12 @@ judges can trigger the next supported scenario from Band. See
 [`docs/live-scenario-validation-log.md`](docs/live-scenario-validation-log.md)
 and [`docs/demo-checklist.md`](docs/demo-checklist.md).
 
+Hosted judge mode adds a public backend entrypoint so judges can trigger the
+Band chain without Adam starting a local terminal. It runs
+`backend/hosted_runtime.py`, starts the existing autonomous listener in the
+background, and exposes sanitized status at `/mission-control-status`. See
+[`docs/hosted-judge-runtime.md`](docs/hosted-judge-runtime.md).
+
 ## Incident Scenario
 
 Demo incident:
@@ -328,6 +334,7 @@ Useful endpoints:
 
 ```text
 GET  /health
+GET  /mission-control-status          # hosted runtime entrypoint only
 GET  /api/incidents/wl-inc-001
 POST /api/incidents/wl-inc-001/reset
 POST /api/incidents/wl-inc-001/start

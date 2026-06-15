@@ -119,19 +119,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 async def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    runtime = build_runtime_from_settings(
-        dry_run=args.dry_run,
-        incident_id=args.incident,
-        state_dir=args.state_dir,
-        frontend_studio_export=args.frontend_studio_export,
-        max_turns=args.max_turns,
-        poll_interval_seconds=args.poll_interval,
-        run_id=args.run_id,
-        stop_after_complete=args.stop_after_complete,
-        single_pass=args.single_pass,
-        message_limit=args.message_limit,
-        baseline_existing_messages=args.baseline_existing,
-    )
+    runtime = build_runtime_from_args(args)
     runtime.enable_receive_debug(
         args.debug_receive,
         include_seen_debug=args.include_seen_debug,
@@ -186,6 +174,22 @@ async def main(argv: Sequence[str] | None = None) -> int:
     if runtime.state_store.frontend_export_path:
         print(f"Frontend Studio export: {runtime.state_store.frontend_export_path}")
     return 0 if state.status == "complete" else 1
+
+
+def build_runtime_from_args(args: argparse.Namespace):
+    return build_runtime_from_settings(
+        dry_run=args.dry_run,
+        incident_id=args.incident,
+        state_dir=args.state_dir,
+        frontend_studio_export=args.frontend_studio_export,
+        max_turns=args.max_turns,
+        poll_interval_seconds=args.poll_interval,
+        run_id=args.run_id,
+        stop_after_complete=args.stop_after_complete,
+        single_pass=args.single_pass,
+        message_limit=args.message_limit,
+        baseline_existing_messages=args.baseline_existing,
+    )
 
 
 def run_cli(argv: Sequence[str] | None = None) -> int:
