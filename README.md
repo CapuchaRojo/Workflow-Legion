@@ -87,6 +87,42 @@ Band chain without Adam starting a local terminal. It runs
 background, and exposes sanitized status at `/mission-control-status`. See
 [`docs/hosted-judge-runtime.md`](docs/hosted-judge-runtime.md).
 
+## Final Hosted Public Demo
+
+Validated public URLs:
+
+- Frontend showcase: <https://workflow-legion-frontend-production.up.railway.app/>
+- Backend health: <https://workflow-legion-production.up.railway.app/health>
+- Backend sanitized status: <https://workflow-legion-production.up.railway.app/mission-control-status>
+
+Final public demo flow:
+
+1. Open the Band room.
+2. Open the public frontend:
+   <https://workflow-legion-frontend-production.up.railway.app/>
+3. Post in Band:
+   `@Workflow Triage Remote Agent AUTO:START WL-INC-003`
+4. Show Band agent posts:
+   `Triage -> Threat Intel + Forensics -> Compliance -> Incident Commander`
+5. Refresh the frontend and show the live hosted Mission Control update.
+6. Open backend `/mission-control-status` if needed as raw sanitized proof.
+
+Current validated proof:
+
+- Band room trigger successfully starts the hosted workflow.
+- Railway-hosted backend processes the five-agent chain.
+- Agents visibly post in Band:
+  `Triage -> Threat Intel + Forensics -> Compliance -> Incident Commander`.
+- Public Railway frontend reads the hosted sanitized Mission Control status.
+- No local terminal listener is required for the public demo.
+- Commander is terminal; there is no downstream handoff after Commander.
+
+Final architecture wording:
+
+Workflow Legion uses Band as the live agent collaboration fabric and proof surface. A Railway-hosted backend listens for Band triggers, runs the deterministic five-agent incident workflow, posts visible agent handoffs back into Band, and exports a sanitized Mission Control status feed. A public Railway-hosted frontend displays that live status for judges without exposing secrets or requiring local terminals.
+
+Native.Builder/NativelyAI informed the showcase/productization layer and visual command-center direction. The final live deployment uses Railway for the hosted frontend and backend runtime.
+
 ## Incident Scenario
 
 Demo incident:
@@ -413,6 +449,7 @@ Key docs:
 - `docs/qa-observer-notes.md`
 - `docs/sponsor-redemption-checklist.md`
 - `docs/final-report-validation.md`
+- `docs/final-hosted-demo-flow.md`
 - `docs/live-scenario-validation-log.md`
 - `docs/provider-role-validation.md`
 - `docs/remote-band-agent-readiness.md`

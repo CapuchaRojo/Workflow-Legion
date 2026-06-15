@@ -10,6 +10,37 @@ Keep the story centered on Band.
 
 Workflow Legion now has five validated remote Band agent identities posting into the Band command room through role-specific Band Agent API keys. The backend workflow remains deterministic and repeatable for judging. Do not claim autonomous live reasoning beyond that validated proof.
 
+## Final Hosted Public Demo Shots
+
+Capture these final screenshots for the hosted judge demo:
+
+- Band completed five-agent hosted chain:
+  `Triage -> Threat Intel + Forensics -> Compliance -> Incident Commander`.
+- Frontend public Mission Control showing live hosted runtime:
+  <https://workflow-legion-frontend-production.up.railway.app/>
+- Backend `/health`:
+  <https://workflow-legion-production.up.railway.app/health>
+- Backend `/mission-control-status`:
+  <https://workflow-legion-production.up.railway.app/mission-control-status>
+- Railway backend service active.
+- Railway frontend service active.
+
+Final public demo flow:
+
+1. Open the Band room.
+2. Open the public frontend:
+   <https://workflow-legion-frontend-production.up.railway.app/>
+3. Post in Band:
+   `@Workflow Triage Remote Agent AUTO:START WL-INC-003`
+4. Show Band agent posts:
+   `Triage -> Threat Intel + Forensics -> Compliance -> Incident Commander`
+5. Refresh the frontend and show the live hosted Mission Control update.
+6. Open backend `/mission-control-status` if needed as raw sanitized proof.
+
+Do not show Railway Variables screens, `.env` files, secrets, sponsor codes, QR
+links, redemption links, private credentials, raw runtime proof JSON, Band IDs,
+room IDs, chat IDs, or API keys.
+
 ## Shot 1: Repository / README
 
 Purpose: Establish project identity and credibility.
@@ -87,7 +118,7 @@ Show:
 - Final CTA
 
 Narration:
-"Band coordinates the agents. The backend executes deterministic workflow logic. Native.Builder and NativelyAI package the showcase."
+"Band coordinates the agents. The Railway backend executes deterministic workflow logic and exports sanitized status. Native.Builder and NativelyAI informed the showcase and command-center direction; Railway hosts the final live frontend and backend."
 
 ## Shot 6: Incident Scenario
 
@@ -152,6 +183,11 @@ Narration:
 Use only assets currently available or validated:
 
 - README
+- hosted public frontend
+- hosted backend health page
+- hosted backend sanitized status page
+- Railway backend service active view
+- Railway frontend service active view
 - Band proof screenshot
 - backend test output
 - frontend-showcase local build
