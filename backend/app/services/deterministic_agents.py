@@ -21,13 +21,7 @@ def build_triage_finding(
         status="complete",
         severity="high",
         confidence="high",
-        summary=(
-            f"Initial triage classifies {incident.incident_id} as high severity "
-            f"for {incident.title} affecting {incident.affected_host}, user "
-            f"{incident.affected_user}, and {incident.department}. Breach, "
-            "exfiltration, or compromise remain unconfirmed pending downstream "
-            f"review. Scenario summary: {incident.summary}"
-        ),
+        summary=_triage_summary(incident),
         evidence=[
             EvidenceItem(
                 evidence_id="EV-TG-001",
@@ -67,12 +61,7 @@ def build_threat_intel_finding(
         status="complete",
         severity="high",
         confidence="medium",
-        summary=(
-            f"Threat Intel reviewed {incident.incident_id} indicators for "
-            f"{incident.title}. {primary_indicator} is suspicious by context "
-            "within the supplied scenario evidence, but no live IOC lookup was "
-            "performed and maliciousness is not independently confirmed."
-        ),
+        summary=_threat_intel_summary(incident),
         evidence=[
             EvidenceItem(
                 evidence_id="EV-TI-001",
@@ -119,12 +108,7 @@ def build_forensics_finding(
         status="complete",
         severity="high",
         confidence="high",
-        summary=(
-            f"Forensics reconstructed a scenario timeline for {incident.incident_id}: "
-            f"{incident.title} involving {incident.affected_host}, "
-            f"{incident.affected_user}, and indicators including "
-            f"{_indicator_sentence(incident)}."
-        ),
+        summary=_forensics_summary(incident),
         evidence=[
             EvidenceItem(
                 evidence_id="EV-FO-001",
@@ -177,12 +161,7 @@ def build_compliance_finding(
         status="complete",
         severity="high",
         confidence="medium",
-        summary=(
-            f"Compliance review flags audit sensitivity for {incident.incident_id} "
-            f"because the affected user and assets belong to {incident.department}. "
-            "This is not legal or regulatory advice; evidence retention and "
-            "management escalation are recommended while scope is validated."
-        ),
+        summary=_compliance_summary(incident),
         evidence=[
             EvidenceItem(
                 evidence_id="EV-CO-001",
@@ -211,12 +190,7 @@ def build_commander_finding(incident: IncidentState) -> AgentFinding:
         status="complete",
         severity="high",
         confidence="high",
-        summary=(
-            f"Commander decision: treat {incident.incident_id} as a high-severity "
-            f"suspected incident involving {incident.title} for "
-            f"{incident.affected_host}. Contain the affected surface, protect "
-            "credentials, and continue scope validation."
-        ),
+        summary=_commander_summary(incident),
         recommended_actions=_commander_actions(incident),
         band_message=(
             f"Commander final decision for {incident.incident_id}: HIGH severity. "
@@ -242,6 +216,213 @@ def run_deterministic_workflow(
         build_commander_finding(incident),
     ]
     return findings
+
+
+def _triage_summary(incident: IncidentState) -> str:
+    return (
+        f"High-severity {incident.title} on {incident.affected_host} for "
+        f"{incident.affected_user} in {incident.department}; {incident.summary} "
+        f"Route Threat Intel and Forensics around {_triage_focus(incident)}."
+    )
+
+
+def _threat_intel_summary(incident: IncidentState) -> str:
+    bucket = _indicator_value(incident, "bucket")
+    public_acl = _indicator_value(incident, "public_acl")
+    access_pattern = _indicator_value(incident, "access_pattern")
+    if bucket and public_acl and access_pattern:
+        return (
+            f"Indicator context: {public_acl} plus {access_pattern} against "
+            f"{bucket} suggest public exposure risk for {_object_path(incident)}."
+        )
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    dns_rate = _indicator_value(incident, "dns_rate")
+    destination_ip = _indicator_value(incident, "destination_ip")
+    if process and domain and dns_rate:
+        return (
+            f"Indicator context: {process} using {domain}, {dns_rate}, and "
+            f"{destination_ip or 'the supplied destination'} suggests beacon-like "
+            "behavior; malware remains unconfirmed."
+        )
+
+    failed_count = _indicator_value(incident, "failed_login_count")
+    source_ip = _indicator_value(incident, "source_ip")
+    impossible_travel = _indicator_value(incident, "impossible_travel")
+    if failed_count and source_ip:
+        return (
+            f"Indicator context: {failed_count} failed logins from {source_ip} "
+            f"plus {impossible_travel or 'impossible travel'} indicate identity "
+            "abuse risk, not confirmed compromise."
+        )
+
+    sender_domain = _indicator_value(incident, "sender_domain")
+    invoice_file = _indicator_value(incident, "invoice_file")
+    mailbox_rule = _indicator_value(incident, "mailbox_rule")
+    if sender_domain and invoice_file:
+        return (
+            f"Indicator context: {sender_domain}, {invoice_file}, and "
+            f"{mailbox_rule or 'mailbox forwarding'} indicate invoice-fraud risk "
+            "requiring out-of-band validation."
+        )
+
+    primary_indicator = _primary_indicator(incident)
+    secondary_indicator = _secondary_indicator(incident)
+    return (
+        f"Indicator context: {primary_indicator} plus {secondary_indicator} are "
+        "suspicious by supplied scenario evidence, with maliciousness unconfirmed."
+    )
+
+
+def _forensics_summary(incident: IncidentState) -> str:
+    bucket = _indicator_value(incident, "bucket")
+    public_acl = _indicator_value(incident, "public_acl")
+    access_pattern = _indicator_value(incident, "access_pattern")
+    if bucket and public_acl and access_pattern:
+        return (
+            f"Evidence timeline links {incident.affected_user}, {public_acl}, "
+            f"{_object_path(incident)}, and {access_pattern} on "
+            f"{incident.affected_host}."
+        )
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    dns_rate = _indicator_value(incident, "dns_rate")
+    destination_ip = _indicator_value(incident, "destination_ip")
+    persistence = _indicator_value(incident, "persistence")
+    if process and domain and dns_rate:
+        return (
+            f"Evidence timeline links {process} on {incident.affected_host}, "
+            f"{dns_rate} to {domain}, {destination_ip or 'outbound traffic'}, and "
+            f"{persistence or 'persistence activity'}."
+        )
+
+    failed_count = _indicator_value(incident, "failed_login_count")
+    source_ip = _indicator_value(incident, "source_ip")
+    mfa_pushes = _indicator_value(incident, "mfa_pushes")
+    if failed_count and source_ip:
+        return (
+            f"Evidence timeline links {incident.affected_user}, {failed_count} "
+            f"failed logins from {source_ip}, {mfa_pushes or 'MFA prompts'}, and "
+            f"{_indicator_value(incident, 'successful_login') or 'session review'}."
+        )
+
+    sender_domain = _indicator_value(incident, "sender_domain")
+    invoice_file = _indicator_value(incident, "invoice_file")
+    mailbox_rule = _indicator_value(incident, "mailbox_rule")
+    if sender_domain and invoice_file:
+        return (
+            f"Evidence timeline links {incident.affected_user}, {sender_domain}, "
+            f"{invoice_file}, and {mailbox_rule or 'mailbox forwarding behavior'} "
+            f"on {incident.affected_host}."
+        )
+
+    return (
+        f"Evidence timeline links {incident.affected_host}, "
+        f"{incident.affected_user}, {_file_observable(incident)}, and "
+        f"{_network_observable(incident)}."
+    )
+
+
+def _compliance_summary(incident: IncidentState) -> str:
+    bucket = _indicator_value(incident, "bucket")
+    if bucket:
+        return (
+            f"{incident.department} customer export exposure for {bucket} requires "
+            "evidence retention, access review, public ACL removal, and management "
+            "escalation while scope is validated."
+        )
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    if process and domain:
+        return (
+            f"{incident.department} workstation activity involving {process} and "
+            f"{domain} requires evidence retention, containment review, and "
+            "management escalation while scope is validated."
+        )
+
+    sender_domain = _indicator_value(incident, "sender_domain")
+    mailbox_rule = _indicator_value(incident, "mailbox_rule")
+    if sender_domain:
+        return (
+            f"{incident.department} invoice-fraud risk involving {sender_domain} "
+            f"and {mailbox_rule or 'mailbox changes'} requires evidence retention "
+            "and payment-change escalation."
+        )
+
+    failed_count = _indicator_value(incident, "failed_login_count")
+    if failed_count:
+        return (
+            f"{incident.department} identity activity with {failed_count} failed "
+            "logins requires evidence retention, access review, and management "
+            "escalation while scope is validated."
+        )
+
+    return (
+        f"{incident.department} activity involving {incident.affected_user} on "
+        f"{incident.affected_host} requires evidence retention and management "
+        "escalation while scope is validated."
+    )
+
+
+def _commander_summary(incident: IncidentState) -> str:
+    bucket = _indicator_value(incident, "bucket")
+    if bucket:
+        return (
+            f"Commander decision: contain {bucket} on {incident.affected_host}, "
+            f"protect {incident.affected_user} credentials, preserve "
+            f"{_object_path(incident)} evidence, and validate exposure scope."
+        )
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    if process and domain:
+        return (
+            f"Commander decision: contain {incident.affected_host}, protect "
+            f"{incident.affected_user}, preserve {process}/{domain} telemetry, "
+            "and validate beaconing scope."
+        )
+
+    return (
+        f"Commander decision: treat {incident.incident_id} as high severity for "
+        f"{incident.title} on {incident.affected_host}; contain affected surface, "
+        "protect credentials, and validate scope."
+    )
+
+
+def _triage_focus(incident: IncidentState) -> str:
+    bucket = _indicator_value(incident, "bucket")
+    public_acl = _indicator_value(incident, "public_acl")
+    if bucket and public_acl:
+        return f"{bucket} with {public_acl} for {_object_path(incident)}"
+
+    process = _indicator_value(incident, "process")
+    domain = _indicator_value(incident, "domain")
+    dns_rate = _indicator_value(incident, "dns_rate")
+    if process and domain and dns_rate:
+        return f"{process}, {domain}, and {dns_rate}"
+
+    failed_count = _indicator_value(incident, "failed_login_count")
+    source_ip = _indicator_value(incident, "source_ip")
+    if failed_count and source_ip:
+        return f"{failed_count} failed logins from {source_ip}"
+
+    sender_domain = _indicator_value(incident, "sender_domain")
+    invoice_file = _indicator_value(incident, "invoice_file")
+    if sender_domain and invoice_file:
+        return f"{sender_domain} and {invoice_file}"
+
+    return _indicator_sentence(incident)
+
+
+def _object_path(incident: IncidentState) -> str:
+    exposed_file = _indicator_value(incident, "exposed_file")
+    object_prefix = _indicator_value(incident, "object_prefix")
+    if exposed_file and object_prefix:
+        return f"{object_prefix.rstrip('/')}/{exposed_file}"
+    return exposed_file or object_prefix or _file_observable(incident)
 
 
 def _indicator_sentence(incident: IncidentState, limit: int = 3) -> str:

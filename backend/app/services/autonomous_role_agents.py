@@ -277,9 +277,11 @@ class AutonomousReasoningProvider:
             role=definition.role,
             provider_name=provider_config.name,
             provider_mode="provider_live",
-            summary=_normalize_text(
+            summary=_normalize_role_summary(
                 parsed.get("summary"),
                 fallback_output.summary,
+                definition,
+                context,
             ),
             evidence=_normalize_text_list(
                 parsed.get("evidence"),
@@ -427,6 +429,9 @@ def _build_provider_prompt(
         "provided below.\n"
         "- Treat breach, compromise, and exfiltration as unconfirmed possibilities "
         "unless the supplied evidence explicitly confirms them.\n"
+        "- Make summary one role-specific sentence grounded in concrete "
+        "scenario indicators; do not only repeat the incident Summary or an "
+        "upstream role summary.\n"
         f"- Keep band_message at or below {MAX_BAND_TASK_POST_CHARS} characters.\n"
         "- Use no more than 5 evidence items and 4 recommended actions.\n"
         "- Make the Band handoff explicit only to the listed handoff targets.\n"
@@ -567,6 +572,42 @@ def _normalize_text(value: Any, fallback: str) -> str:
         return fallback
     normalized = value.strip()
     return normalized or fallback
+
+
+def _normalize_role_summary(
+    value: Any,
+    fallback: str,
+    definition: RoleDefinition,
+    context: AutonomousRoleContext,
+) -> str:
+    normalized = _normalize_text(value, fallback)
+    if _summary_needs_role_specific_fallback(normalized, definition, context):
+        return fallback
+    return normalized
+
+
+def _summary_needs_role_specific_fallback(
+    summary: str,
+    definition: RoleDefinition,
+    context: AutonomousRoleContext,
+) -> bool:
+    if definition.role == "commander":
+        return False
+
+    normalized = _comparison_text(summary)
+    incident = context.incident
+    generic_summaries = {
+        _comparison_text(incident.summary),
+        _comparison_text(incident.title),
+    }
+    upstream_summaries = {
+        _comparison_text(item) for item in context.upstream_summaries.values()
+    }
+    return normalized in generic_summaries or normalized in upstream_summaries
+
+
+def _comparison_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().lower()).strip(" .")
 
 
 def _normalize_text_list(

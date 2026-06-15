@@ -94,6 +94,24 @@ EXPECTED_SCENARIO_ACTIONS = {
     },
 }
 
+EXPECTED_SUMMARY_INDICATORS = {
+    "WL-INC-004": (
+        "customer-export-archive",
+        "anonymous read",
+        "customer_contacts_q4.csv",
+        "svc-data-export",
+        "exports/q4",
+        "anonymous download burst",
+    ),
+    "WL-INC-005": (
+        "updater_service.exe",
+        "cdn-update-check.example",
+        "repeated lookups",
+        "198.51.100.42",
+        "scheduled task",
+    ),
+}
+
 
 class ScenarioBankTests(unittest.TestCase):
     def test_all_phase_four_scenarios_are_registered(self) -> None:
@@ -234,6 +252,33 @@ class ScenarioBankTests(unittest.TestCase):
                 self.assertIn(incident.affected_user, triage_output.summary)
                 self.assertIn(incident.department, triage_output.summary)
                 self.assertIn(incident.summary, triage_output.summary)
+
+    def test_storage_and_dns_role_summaries_preserve_scenario_detail(self) -> None:
+        summary_roles = ("triage", "threat_intel", "forensics")
+
+        for incident_id, expected_indicators in EXPECTED_SUMMARY_INDICATORS.items():
+            with self.subTest(incident_id=incident_id):
+                with tempfile.TemporaryDirectory() as state_dir:
+                    runtime = build_runtime_from_settings(
+                        dry_run=True,
+                        incident_id=incident_id,
+                        state_dir=state_dir,
+                        run_id=f"summary-detail-{incident_id.lower()}",
+                        settings_obj=self._settings_without_provider_keys(),
+                    )
+
+                    state = asyncio.run(runtime.run_until_complete())
+
+                summaries = [
+                    state.role_outputs[role].summary
+                    for role in summary_roles
+                ]
+                summary_text = "\n".join(summaries)
+
+                self.assertEqual(len(set(summaries)), len(summary_roles))
+                for indicator in expected_indicators:
+                    with self.subTest(incident_id=incident_id, indicator=indicator):
+                        self.assertIn(indicator, summary_text)
 
     def test_new_scenario_dry_runs_do_not_leak_wl_inc_001_indicators(self) -> None:
         for incident_id in ("WL-INC-002", "WL-INC-003", "WL-INC-004", "WL-INC-005"):
