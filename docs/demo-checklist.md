@@ -47,7 +47,7 @@ Required result:
 ## Judge Mode
 
 - [ ] Start the local PowerShell supervisor loop with `--message-limit 75` for the current Band room.
-- [ ] Wait for the terminal `READY` banner before each judge-triggered incident.
+- [ ] Judges wait for the terminal `READY` banner before posting the next scenario.
 - [ ] Judges post a supported Band trigger such as `@Workflow Triage Remote Agent AUTO:START WL-INC-001`.
 - [ ] Backend completes one incident, exports sanitized Mission Control state, restarts the live Band listener, and waits for the next fresh Band trigger.
 - [ ] Runtime proof JSON and screenshots stay local unless deliberately sanitized and reviewed.

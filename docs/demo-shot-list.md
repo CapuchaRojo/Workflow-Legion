@@ -126,6 +126,17 @@ Show final report or deterministic commander output.
 Narration:
 "The commander classifies this as high severity and recommends containment: isolate FIN-042, reset j.morgan's credentials, preserve PowerShell logs, and continue exfiltration scoping."
 
+## Optional Shot: Judge Mode Repeatability
+
+Purpose: Show repeatable judge-triggered scenarios.
+
+Show:
+- Judge mode `READY` banner.
+- Band `AUTO:START` trigger.
+- Mission Control update.
+- Commander final decision.
+- Listener restarting for the next incident.
+
 ## Shot 9: Closing Value Proposition
 
 Purpose: End cleanly.
