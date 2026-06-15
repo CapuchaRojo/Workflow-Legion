@@ -9,6 +9,45 @@ autonomous Band listener. It does not replace the architecture:
 - Native.Builder / NativelyAI remains showcase/productization.
 - AI/ML API and Featherless remain optional provider layers with fallback labels.
 
+## Final Public Hosted Flow
+
+Validated public URLs:
+
+- Frontend showcase: <https://workflow-legion-frontend-production.up.railway.app/>
+- Backend health: <https://workflow-legion-production.up.railway.app/health>
+- Backend sanitized status: <https://workflow-legion-production.up.railway.app/mission-control-status>
+
+Exact judge demo flow:
+
+1. Open the Band room.
+2. Open the public frontend:
+   <https://workflow-legion-frontend-production.up.railway.app/>
+3. Post in Band:
+   `@Workflow Triage Remote Agent AUTO:START WL-INC-003`
+4. Show Band agent posts:
+   `Triage -> Threat Intel + Forensics -> Compliance -> Incident Commander`
+5. Refresh the frontend and show the live hosted Mission Control update.
+6. Open backend `/mission-control-status` if needed as raw sanitized proof.
+
+Final architecture boundary:
+
+Workflow Legion uses Band as the live agent collaboration fabric and proof surface. A Railway-hosted backend listens for Band triggers, runs the deterministic five-agent incident workflow, posts visible agent handoffs back into Band, and exports a sanitized Mission Control status feed. A public Railway-hosted frontend displays that live status for judges without exposing secrets or requiring local terminals.
+
+Native.Builder/NativelyAI informed the showcase/productization layer and visual command-center direction. The final live deployment uses Railway for the hosted frontend and backend runtime.
+
+## Current Validated Proof Boundary
+
+- Band room trigger successfully starts the hosted workflow.
+- Railway-hosted backend processes the five-agent chain.
+- Agents visibly post in Band:
+  `Triage -> Threat Intel + Forensics -> Compliance -> Incident Commander`.
+- Public Railway frontend reads the hosted sanitized Mission Control status.
+- No local terminal listener is required for the public demo.
+- Commander is terminal; there is no downstream handoff after Commander.
+- `/mission-control-status` is sanitized proof only. It must not expose raw
+  Band payloads, room IDs, agent IDs, chat IDs, API keys, `.env` values,
+  sponsor codes, QR codes, redemption links, or private credentials.
+
 ## Entrypoint
 
 Code:
@@ -87,11 +126,15 @@ evidence.
 
 ## Hosted Smoke-Test Checklist
 
+- [ ] Open the public frontend:
+  `https://workflow-legion-frontend-production.up.railway.app/`.
+- [ ] Open the public backend health URL:
+  `https://workflow-legion-production.up.railway.app/health`.
 - [ ] Open the public Mission Control/status URL:
-  `https://<backend-host>/mission-control-status`.
+  `https://workflow-legion-production.up.railway.app/mission-control-status`.
 - [ ] Confirm `/health` returns `service: workflow-legion-hosted-runtime`.
 - [ ] Post this in the Band incident room:
-  `@<triage-agent-handle> AUTO:START WL-INC-00X`.
+  `@Workflow Triage Remote Agent AUTO:START WL-INC-003`.
 - [ ] Confirm the hosted runtime processes the chain without a local terminal.
 - [ ] Confirm Triage visibly mentions Threat Intel and Forensics in Band.
 - [ ] Confirm Threat Intel, Forensics, Compliance, and Commander post through
@@ -100,6 +143,8 @@ evidence.
   labeled `deterministic_fallback`.
 - [ ] Confirm Commander is terminal: final decision posts and no downstream
   workflow handoff is exported.
+- [ ] Refresh the public frontend and confirm Mission Control updates from the
+  hosted status feed.
 - [ ] Refresh `/mission-control-status` and confirm it shows sanitized Mission
   Control JSON only.
 

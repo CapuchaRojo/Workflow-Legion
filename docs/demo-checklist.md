@@ -1,5 +1,36 @@
 ﻿# Demo Checklist
 
+## Final Hosted Public Demo
+
+- [ ] `HOSTED_RUNTIME_DEBUG_RECEIVE=false`.
+- [ ] Railway backend service is active.
+- [ ] Railway frontend service is active.
+- [ ] Public frontend opens:
+  `https://workflow-legion-frontend-production.up.railway.app/`.
+- [ ] Public backend health opens:
+  `https://workflow-legion-production.up.railway.app/health`.
+- [ ] Public backend sanitized status opens:
+  `https://workflow-legion-production.up.railway.app/mission-control-status`.
+- [ ] No local 8080 or 8081 listeners are required or running for the public
+  recording.
+- [ ] No Railway Variables screens appear in the recording.
+- [ ] No secrets, sponsor codes, QR links, redemption links, private
+  credentials, Band IDs, room IDs, chat IDs, API keys, `.env` values, raw
+  runtime proof JSON, `node_modules`, `dist`, or build output are visible.
+- [ ] Band trigger tested with WL-INC-003 or WL-INC-005.
+- [ ] Recommended public trigger:
+  `@Workflow Triage Remote Agent AUTO:START WL-INC-003`.
+- [ ] Band shows:
+  `Triage -> Threat Intel + Forensics -> Compliance -> Incident Commander`.
+- [ ] Commander is terminal; no downstream handoff appears after Commander.
+- [ ] Frontend updates from the hosted sanitized status feed after refresh.
+
+Final architecture language:
+
+Workflow Legion uses Band as the live agent collaboration fabric and proof surface. A Railway-hosted backend listens for Band triggers, runs the deterministic five-agent incident workflow, posts visible agent handoffs back into Band, and exports a sanitized Mission Control status feed. A public Railway-hosted frontend displays that live status for judges without exposing secrets or requiring local terminals.
+
+Native.Builder/NativelyAI informed the showcase/productization layer and visual command-center direction. The final live deployment uses Railway for the hosted frontend and backend runtime.
+
 ## Local Repo State
 
 - [ ] Working tree is clean before recording.
