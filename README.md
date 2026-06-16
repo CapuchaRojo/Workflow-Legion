@@ -65,6 +65,9 @@ The backend remains a deterministic workflow/runtime layer. Band remains the vis
 
 This proof does not overclaim autonomous live reasoning beyond the validated deterministic workflow plus remote Band identity posting proof.
 
+For the concise judge-facing Track 3 narrative, see
+[`docs/final-track-3-narrative.md`](docs/final-track-3-narrative.md).
+
 Completed live scenario validation notes for WL-INC-002 through WL-INC-005 are
 tracked in `docs/live-scenario-validation-log.md` without committing raw proof
 artifacts.
