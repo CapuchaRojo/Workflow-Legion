@@ -24,7 +24,7 @@ Band is not a final notification channel. It is the shared coordination fabric.
 
 ## Current Validated Proof
 
-Workflow Legion has validated five remote Band agent identities posting into the Band command room through role-specific Band Agent API keys.
+Workflow Legion has validated a hosted five-agent Band-triggered workflow where Band is the live collaboration fabric, the Railway backend executes deterministic runtime logic, and Mission Control displays sanitized hosted status.
 
 Current validated proof:
 
@@ -34,12 +34,6 @@ Current validated proof:
 - Compliance Agent delivered true.
 - Incident Commander Agent delivered true.
 - No fallback mention-resolution errors were observed.
-
-Final proof screenshot:
-
-```text
-docs/screenshots/proof-five-remote-agents-band-post.png
-```
 
 Validated repo state:
 
@@ -122,6 +116,70 @@ Final architecture wording:
 Workflow Legion uses Band as the live agent collaboration fabric and proof surface. A Railway-hosted backend listens for Band triggers, runs the deterministic five-agent incident workflow, posts visible agent handoffs back into Band, and exports a sanitized Mission Control status feed. A public Railway-hosted frontend displays that live status for judges without exposing secrets or requiring local terminals.
 
 Native.Builder/NativelyAI informed the showcase/productization layer and visual command-center direction. The final live deployment uses Railway for the hosted frontend and backend runtime.
+
+## Final Screenshot Evidence Gallery
+
+Recommended judge demo: `WL-INC-003` vendor invoice fraud / BEC. Alternate validated proof: `WL-INC-005` malware beacon / scheduled task.
+
+The screenshots below stay within the validated proof boundary: Band coordinates the visible collaboration; the Railway backend listens for Band triggers and executes deterministic workflow/runtime logic; Mission Control displays sanitized hosted status only.
+
+### Hosted infrastructure
+
+![Railway proof that frontend and backend services are online.](docs/screenshots/frontend_and_backend_both_live_railway.png)
+
+Railway proof that frontend and backend services are online.
+
+![Hosted backend health endpoint showing runtime status and Band configuration.](docs/screenshots/health_status_railway.app.png)
+
+Hosted backend health endpoint showing runtime status and Band configuration.
+
+![Sanitized Mission Control JSON status feed from hosted backend.](docs/screenshots/mission_control_status_railway.app.png)
+
+Sanitized Mission Control JSON status feed from hosted backend.
+
+### Band-visible five-agent proof
+
+![WL-INC-001 suspicious PowerShell flow in Band.](docs/screenshots/proof_5_agents_in_chat_001_app.band.png)
+
+WL-INC-001 suspicious PowerShell flow in Band.
+
+![WL-INC-002 credential stuffing / impossible travel flow in Band.](docs/screenshots/proof_5_agents_in_chat_002_app.band.png)
+
+WL-INC-002 credential stuffing / impossible travel flow in Band.
+
+![WL-INC-003 vendor invoice fraud / BEC flow in Band.](docs/screenshots/proof_5_agents_in_chat_003_app.band.png)
+
+WL-INC-003 vendor invoice fraud / BEC flow in Band.
+
+![WL-INC-004 public bucket / customer export exposure flow in Band.](docs/screenshots/proof_5_agents_in_chat_004_app.band.png)
+
+WL-INC-004 public bucket / customer export exposure flow in Band.
+
+![WL-INC-005 malware beacon / scheduled task flow in Band.](docs/screenshots/proof_5_agents_in_chat_005_app.band.png)
+
+WL-INC-005 malware beacon / scheduled task flow in Band.
+
+### Public Mission Control completion views
+
+![Mission Control completion view for WL-INC-001.](docs/screenshots/proof_completion_001_suspicious_powershell_railway.app.png)
+
+Mission Control completion view for WL-INC-001.
+
+![Mission Control completion view for WL-INC-002.](docs/screenshots/proof_completion_002_credential_stuffing_railway.app.png)
+
+Mission Control completion view for WL-INC-002.
+
+![Mission Control completion view for WL-INC-003.](docs/screenshots/proof_completion_003_invoice_fraud_frontend_railway.app.png)
+
+Mission Control completion view for WL-INC-003.
+
+![Mission Control completion view for WL-INC-004.](docs/screenshots/proof_completion_004_exposed_bucket_frontend_railway.app.png)
+
+Mission Control completion view for WL-INC-004.
+
+![Mission Control completion view for WL-INC-005.](docs/screenshots/proof_completion_005_malware_beacon_frontend_railway.app.png)
+
+Mission Control completion view for WL-INC-005.
 
 ## Incident Scenario
 
@@ -572,36 +630,6 @@ Submission safety gate:
 - no `.env`, API keys, sponsor codes, QR codes, `node_modules`, `dist`, or build output are committed,
 - the demo describes Band as the core collaboration fabric,
 - the demo does not claim autonomous live reasoning beyond the validated deterministic workflow and remote Band identity proof.
-
-## Screenshot Archive
-
-Recommended screenshot archive path:
-
-```text
-docs/screenshots/
-```
-
-Current proof screenshot:
-
-```text
-docs/screenshots/proof-five-remote-agents-band-post.png
-```
-
-Suggested screenshot caption:
-
-Five Workflow Legion remote Band agent identities posting WL-INC-001 role-specific workflow messages into the Band command room through role-specific Band Agent API keys.
-
-Additional screenshots to capture before final submission:
-
-- Band room proof showing Triage, Threat Intel, Forensics, Compliance, and Incident Commander posts.
-- Band message timeline showing WL-INC-001 workflow posts.
-- FastAPI `/health` response.
-- FastAPI `post_to_band=true` incident response.
-- GitHub repository README.
-- GitHub project board.
-- Static showcase landing page hero.
-- Static showcase architecture section.
-- Static showcase sponsor tools section.
 
 ## Safety Notes
 
