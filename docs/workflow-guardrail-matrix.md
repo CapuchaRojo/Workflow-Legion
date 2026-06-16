@@ -18,7 +18,7 @@ The backend serves as the deterministic workflow runtime. State transitions, rou
 
 Mission Control provides sanitized operational visibility suitable for demonstrations and reporting. Sensitive operational details are excluded from exported views.
 
-### Provider Independence 
+### Provider Independence
 
 AI/ML API and Featherless function as optional provider support layers. Workflow integrity does not depend on a single provider implementation.
 
@@ -29,7 +29,7 @@ AI/ML API and Featherless function as optional provider support layers. Workflow
 | Visible collaboration trail | Investigation activity cannot be reviewed or validated | Band-Visible Proof | Reviewable and auditable workflow progression |
 | Grounded agent responsibilities | Agents generate overlapping or unstructured outputs | Grounded Role Outputs | Clear ownership and role-specific contributions |
 | Deterministic workflow execution | Runtime behavior varies between demonstrations | Deterministic Backend State | Consistent and reproducible workflow execution |
-| Escalation governance	| Critical incidents lack a defined decision path | Explicit Escalation | Structured progression toward decision authority |
+| Escalation governance | Critical incidents lack a defined decision path | Explicit Escalation | Structured progression toward decision authority |
 | Compliance awareness | Regulatory or audit concerns are overlooked | Compliance Caution | Compliance implications are surfaced before action |
 | Controlled workflow completion | Investigations continue without closure criteria | Commander Stop Condition | Clear workflow termination and final recommendation |
 | Safe reporting | Operational details appear in demonstration artifacts | Sanitized Mission Control Reporting | Demonstration-safe visibility and reporting |
@@ -52,7 +52,7 @@ Builds evidence timelines, identifies investigation gaps, and maintains investig
 
 ### Compliance Agent
 
-Introduces audit, escalation, reporting, and governance considerations.
+Introduces audit, escalation, reporting, and governance considerations. Workflow Legion surfaces governance and compliance context for review, but it does not provide legal advice or final regulatory determinations.
 
 ### Incident Commander Agent
 
