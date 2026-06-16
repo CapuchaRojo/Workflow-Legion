@@ -465,6 +465,7 @@ p {
 .mission-layer-card,
 .mission-panel,
 .mission-summary-card,
+.mission-empty-state,
 .incident-brief,
 .flow-step,
 .endpoint-panel,
@@ -485,6 +486,7 @@ p {
 .mission-layer-card,
 .mission-panel,
 .mission-summary-card,
+.mission-empty-state,
 .incident-brief,
 .endpoint-panel,
 .sponsor-card,
@@ -590,6 +592,38 @@ p {
 .mission-summary-card p {
   margin: 12px 0 0;
   font-size: 0.88rem;
+}
+
+.mission-empty-state {
+  display: grid;
+  min-height: 260px;
+  align-content: center;
+  border-color: rgba(0, 212, 255, 0.28);
+  background:
+    linear-gradient(135deg, rgba(0, 212, 255, 0.08), transparent 52%),
+    rgba(16, 24, 39, 0.72);
+}
+
+.mission-empty-state h3 {
+  max-width: 720px;
+  margin: 12px 0 0;
+  color: var(--text);
+  font-size: 1.6rem;
+  line-height: 1.18;
+}
+
+.mission-empty-state p {
+  max-width: 620px;
+  margin: 12px 0 0;
+}
+
+.mission-empty-state small {
+  display: block;
+  max-width: 720px;
+  margin-top: 18px;
+  color: var(--faint);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
 }
 
 .mission-command-grid {

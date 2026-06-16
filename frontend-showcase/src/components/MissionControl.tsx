@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { SectionHeader } from "./SectionHeader";
 import {
-  demoMissionControlState,
   isMissionControlState,
   type MissionControlRole,
   type MissionControlRoleStatus,
@@ -14,8 +13,8 @@ const CONFIGURED_STATUS_URL =
 const POLL_INTERVAL_MS = 2500;
 
 type StatusTone = "info" | "warning" | "success" | "danger";
-type MissionControlFeedSource = "hosted" | "local" | "demo";
-type MissionControlFeedPhase = "loading" | "ready" | "error";
+type MissionControlFeedSource = "hosted" | "local" | "none";
+type MissionControlFeedPhase = "loading" | "ready" | "waiting";
 
 const statusLabels: Record<MissionControlRoleStatus, string> = {
   idle: "Idle",
@@ -64,15 +63,19 @@ export function MissionControl() {
     useMissionControlFeed();
   const providerLabels = useMemo(
     () =>
-      state.provider_stack
+      state?.provider_stack
         .map((item) => `${item.provider} (${item.roles.length})`)
         .join(" + ") || "Provider labels pending",
-    [state.provider_stack],
+    [state?.provider_stack],
   );
   const deliverySummary = useMemo(() => {
+    if (!state) {
+      return "Awaiting Band deliveries";
+    }
+
     const delivered = state.roles.filter((role) => role.delivery?.delivered).length;
     return `${delivered}/${state.roles.length} Band deliveries`;
-  }, [state.roles]);
+  }, [state]);
   const feedLabel = feedLabelForSource(source);
   const feedTone = feedToneFor(source, phase);
 
@@ -97,170 +100,196 @@ export function MissionControl() {
             ) : null}
           </div>
 
-          <div className="mission-summary">
-            <div className="mission-summary-card mission-summary-card--primary">
-              <span className="panel-label">Incident ID</span>
-              <h3>{state.incident_id}</h3>
-              <p>Sanitized live scenario status from the backend runtime export.</p>
-            </div>
-            <div className="mission-summary-card">
-              <span className="panel-label">Run ID</span>
-              <h3>{state.run_id}</h3>
-              <p>Runtime export source: {state.source_state_file}</p>
-            </div>
-            <div className="mission-summary-card">
-              <span className="panel-label">Chain status</span>
-              <h3>{state.chain_status}</h3>
-              <p>{deliverySummary}</p>
-            </div>
-            <div className="mission-summary-card">
-              <span className="panel-label">Provider labels</span>
-              <h3>{providerLabels}</h3>
-              <p>AI/ML API and Featherless remain support layers, not coordination fabric.</p>
-            </div>
-          </div>
-
-          <div className="mission-command-grid">
-            <article className="mission-panel mission-panel--wide mission-current-panel">
-              <div className="mission-panel-header">
-                <span className="panel-label">Current chain</span>
-                <span className={`status-pill status-pill--${toneForStatus(state.chain_status)}`}>
-                  {state.chain_status}
-                </span>
-              </div>
-              <p className="mission-chain">{state.current_chain}</p>
-              <div className="mission-current-row">
-                <span>Now showing</span>
-                <strong>{state.current_role}</strong>
-              </div>
-            </article>
-            <article className="mission-panel mission-builder-panel">
-              <div className="mission-builder-brand">
-                <img
-                  alt="NativelyAI"
-                  height="32"
-                  src="/nativelyai.svg"
-                  width="32"
-                />
-                <div>
-                  <span className="panel-label">Natively / Native.Builder</span>
-                  <h3>Mission Control productization layer</h3>
+          {!state ? (
+            <MissionControlEmptyState endpointLabel={endpointLabel} />
+          ) : (
+            <>
+              <div className="mission-summary">
+                <div className="mission-summary-card mission-summary-card--primary">
+                  <span className="panel-label">Incident ID</span>
+                  <h3>{state.incident_id}</h3>
+                  <p>
+                    Sanitized live scenario status from the backend runtime export.
+                  </p>
+                </div>
+                <div className="mission-summary-card">
+                  <span className="panel-label">Run ID</span>
+                  <h3>{state.run_id}</h3>
+                  <p>Runtime export source: {state.source_state_file}</p>
+                </div>
+                <div className="mission-summary-card">
+                  <span className="panel-label">Chain status</span>
+                  <h3>{state.chain_status}</h3>
+                  <p>{deliverySummary}</p>
+                </div>
+                <div className="mission-summary-card">
+                  <span className="panel-label">Provider labels</span>
+                  <h3>{providerLabels}</h3>
+                  <p>
+                    AI/ML API and Featherless remain support layers, not
+                    coordination fabric.
+                  </p>
                 </div>
               </div>
-              <p>
-                The Natively presentation layer makes the incident command state
-                readable for demos, judges, and stakeholders. It does not own
-                agent coordination or runtime execution.
-              </p>
-            </article>
-          </div>
 
-          <div className="mission-layer-grid" aria-label="Mission Control architecture roles">
-            {missionLayerCards.map((card) => (
-              <article className="mission-layer-card" key={card.title}>
-                <span>{card.label}</span>
-                <h3>{card.title}</h3>
-                <p>{card.body}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="mission-agent-heading">
-            <div>
-              <span className="panel-label">Five task agents</span>
-              <h3>Band-visible role status</h3>
-            </div>
-            <p>
-              Agents are task agents, not general chatbots. Each card shows
-              status, provider mode, handoff target, and Band delivery state.
-            </p>
-          </div>
-
-          <div className="mission-agent-grid mission-agent-grid--runtime">
-            {state.roles.map((role) => {
-              const delivery = role.delivery ?? {
-                attempted_at: null,
-                delivered: false,
-                status: "pending",
-                status_code: null,
-              };
-
-              return (
-                <article className="mission-agent-card" key={role.role}>
-                  <div className="agent-card__topline">
+              <div className="mission-command-grid">
+                <article className="mission-panel mission-panel--wide mission-current-panel">
+                  <div className="mission-panel-header">
+                    <span className="panel-label">Current chain</span>
                     <span
-                      className={`status-dot status-dot--${statusTones[role.status]}`}
-                    />
-                    <span
-                      className={`status-pill status-pill--${statusTones[role.status]}`}
+                      className={`status-pill status-pill--${toneForStatus(
+                        state.chain_status,
+                      )}`}
                     >
-                      {statusLabels[role.status]}
+                      {state.chain_status}
                     </span>
                   </div>
-                  <h3>{role.display_name}</h3>
-                  <span className="agent-card__lens">
-                    {roleLensFor(role.role)}
-                  </span>
-                  <p className="agent-card__summary">
-                    {summaryForRoleCard(role, state)}
-                  </p>
-                  <div className="mission-card-meta">
-                    <span>Provider: {role.provider}</span>
-                    <span>Mode: {role.provider_mode}</span>
-                  </div>
-                  <div className="mission-handoff">
-                    <span className="panel-label">Handoff</span>
-                    <p>
-                      {role.handoff_targets.length
-                        ? role.handoff_targets.join(" + ")
-                        : "Stop"}
-                    </p>
-                  </div>
-                  <div className="mission-delivery-row">
-                    <span>Band delivery</span>
-                    <strong className={`status-pill status-pill--${toneForStatus(delivery.status)}`}>
-                      {delivery.status}
-                    </strong>
-                    <small>
-                      {delivery.status_code !== null
-                        ? `HTTP ${delivery.status_code}`
-                        : "status code pending"}
-                    </small>
+                  <p className="mission-chain">{state.current_chain}</p>
+                  <div className="mission-current-row">
+                    <span>Now showing</span>
+                    <strong>{state.current_role}</strong>
                   </div>
                 </article>
-              );
-            })}
-          </div>
+                <article className="mission-panel mission-builder-panel">
+                  <div className="mission-builder-brand">
+                    <img
+                      alt="NativelyAI"
+                      height="32"
+                      src="/nativelyai.svg"
+                      width="32"
+                    />
+                    <div>
+                      <span className="panel-label">Natively / Native.Builder</span>
+                      <h3>Mission Control productization layer</h3>
+                    </div>
+                  </div>
+                  <p>
+                    The Natively presentation layer makes the incident command
+                    state readable for demos, judges, and stakeholders. It does
+                    not own agent coordination or runtime execution.
+                  </p>
+                </article>
+              </div>
 
-          <div className="mission-proof-grid">
-            <article className="mission-panel mission-panel--wide">
-              <span className="panel-label">Commander decision</span>
-              <p>
-                {state.final_commander_decision.summary ||
-                  "Pending Incident Commander decision."}
-              </p>
-              <span className="mission-decision-status">
-                {state.final_commander_decision.status}
-              </span>
-            </article>
-            <article className="mission-panel mission-panel--wide">
-              <span className="panel-label">Proof screenshot / proof note</span>
-              <p>{state.band_proof_note}</p>
-              <small>
-                Screenshot proof remains external Band room evidence. This panel
-                displays only the sanitized proof note from the Mission Control
-                export.
-              </small>
-            </article>
-            <article className="mission-panel mission-panel--wide">
-              <span className="panel-label">Internal handoff queue</span>
-              <p>{state.internal_queue_note}</p>
-              <small>
-                The queue is deterministic execution bookkeeping. Band remains
-                the shared command room and proof surface.
-              </small>
-            </article>
-          </div>
+              <div
+                className="mission-layer-grid"
+                aria-label="Mission Control architecture roles"
+              >
+                {missionLayerCards.map((card) => (
+                  <article className="mission-layer-card" key={card.title}>
+                    <span>{card.label}</span>
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mission-agent-heading">
+                <div>
+                  <span className="panel-label">Five task agents</span>
+                  <h3>Band-visible role status</h3>
+                </div>
+                <p>
+                  Agents are task agents, not general chatbots. Each card shows
+                  status, provider mode, handoff target, and Band delivery state.
+                </p>
+              </div>
+
+              <div className="mission-agent-grid mission-agent-grid--runtime">
+                {state.roles.map((role) => {
+                  const delivery = role.delivery ?? {
+                    attempted_at: null,
+                    delivered: false,
+                    status: "pending",
+                    status_code: null,
+                  };
+
+                  return (
+                    <article className="mission-agent-card" key={role.role}>
+                      <div className="agent-card__topline">
+                        <span
+                          className={`status-dot status-dot--${
+                            statusTones[role.status]
+                          }`}
+                        />
+                        <span
+                          className={`status-pill status-pill--${
+                            statusTones[role.status]
+                          }`}
+                        >
+                          {statusLabels[role.status]}
+                        </span>
+                      </div>
+                      <h3>{role.display_name}</h3>
+                      <span className="agent-card__lens">
+                        {roleLensFor(role.role)}
+                      </span>
+                      <p className="agent-card__summary">
+                        {summaryForRoleCard(role, state)}
+                      </p>
+                      <div className="mission-card-meta">
+                        <span>Provider: {role.provider}</span>
+                        <span>Mode: {role.provider_mode}</span>
+                      </div>
+                      <div className="mission-handoff">
+                        <span className="panel-label">Handoff</span>
+                        <p>
+                          {role.handoff_targets.length
+                            ? role.handoff_targets.join(" + ")
+                            : "Stop"}
+                        </p>
+                      </div>
+                      <div className="mission-delivery-row">
+                        <span>Band delivery</span>
+                        <strong
+                          className={`status-pill status-pill--${toneForStatus(
+                            delivery.status,
+                          )}`}
+                        >
+                          {delivery.status}
+                        </strong>
+                        <small>
+                          {delivery.status_code !== null
+                            ? `HTTP ${delivery.status_code}`
+                            : "status code pending"}
+                        </small>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="mission-proof-grid">
+                <article className="mission-panel mission-panel--wide">
+                  <span className="panel-label">Commander decision</span>
+                  <p>
+                    {state.final_commander_decision.summary ||
+                      "Pending Incident Commander decision."}
+                  </p>
+                  <span className="mission-decision-status">
+                    {state.final_commander_decision.status}
+                  </span>
+                </article>
+                <article className="mission-panel mission-panel--wide">
+                  <span className="panel-label">Proof screenshot / proof note</span>
+                  <p>{state.band_proof_note}</p>
+                  <small>
+                    Screenshot proof remains external Band room evidence. This
+                    panel displays only the sanitized proof note from the Mission
+                    Control export.
+                  </small>
+                </article>
+                <article className="mission-panel mission-panel--wide">
+                  <span className="panel-label">Internal handoff queue</span>
+                  <p>{state.internal_queue_note}</p>
+                  <small>
+                    The queue is deterministic execution bookkeeping. Band
+                    remains the shared command room and proof surface.
+                  </small>
+                </article>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </section>
@@ -268,7 +297,7 @@ export function MissionControl() {
 }
 
 function useMissionControlFeed(): {
-  state: MissionControlState;
+  state: MissionControlState | null;
   source: MissionControlFeedSource;
   phase: MissionControlFeedPhase;
   endpointLabel: string;
@@ -276,10 +305,8 @@ function useMissionControlFeed(): {
 } {
   const statusUrl = CONFIGURED_STATUS_URL || LOCAL_STATUS_PATH;
   const usesHostedRuntime = CONFIGURED_STATUS_URL.length > 0;
-  const [state, setState] = useState<MissionControlState>(
-    demoMissionControlState,
-  );
-  const [source, setSource] = useState<MissionControlFeedSource>("demo");
+  const [state, setState] = useState<MissionControlState | null>(null);
+  const [source, setSource] = useState<MissionControlFeedSource>("none");
   const [phase, setPhase] = useState<MissionControlFeedPhase>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -308,13 +335,13 @@ function useMissionControlFeed(): {
         }
       } catch {
         if (!cancelled) {
-          setState(demoMissionControlState);
-          setSource("demo");
-          setPhase("error");
+          setState(null);
+          setSource("none");
+          setPhase("waiting");
           setErrorMessage(
             usesHostedRuntime
-              ? "Hosted runtime unavailable; showing demo fallback."
-              : "Local status export unavailable; showing built-in demo fallback.",
+              ? "Hosted runtime status unavailable; waiting for live export."
+              : "Local status export unavailable; waiting for live export.",
           );
         }
       }
@@ -345,15 +372,15 @@ function feedLabelForSource(source: MissionControlFeedSource): string {
   if (source === "local") {
     return "Local status export";
   }
-  return "Demo fallback";
+  return "No live export";
 }
 
 function feedPhaseLabel(phase: MissionControlFeedPhase): string {
   if (phase === "loading") {
     return "Loading status";
   }
-  if (phase === "error") {
-    return "Fetch failed safely";
+  if (phase === "waiting") {
+    return "Waiting safely";
   }
   return "Status loaded";
 }
@@ -362,13 +389,13 @@ function feedToneFor(
   source: MissionControlFeedSource,
   phase: MissionControlFeedPhase,
 ): StatusTone {
-  if (phase === "error") {
-    return "danger";
-  }
   if (phase === "loading") {
     return "warning";
   }
-  return source === "demo" ? "warning" : "success";
+  if (phase === "waiting" || source === "none") {
+    return "info";
+  }
+  return "success";
 }
 
 function toneForStatus(status: string): StatusTone {
@@ -429,4 +456,22 @@ function threatIntelSummaryForRoleCard(
   }
 
   return summary;
+}
+
+function MissionControlEmptyState({
+  endpointLabel,
+}: {
+  endpointLabel: string;
+}) {
+  return (
+    <div className="mission-empty-state" role="status" aria-live="polite">
+      <span className="panel-label">Mission Control status</span>
+      <h3>Waiting for live Band incident export...</h3>
+      <p>Start a supported Band scenario to populate Mission Control.</p>
+      <small>
+        Polling {endpointLabel}; sanitized public status only. Sensitive
+        identifiers and private runtime data are not displayed.
+      </small>
+    </div>
+  );
 }
