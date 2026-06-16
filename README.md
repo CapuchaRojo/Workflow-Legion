@@ -68,6 +68,9 @@ This proof does not overclaim autonomous live reasoning beyond the validated det
 For the concise judge-facing Track 3 narrative, see
 [`docs/final-track-3-narrative.md`](docs/final-track-3-narrative.md).
 
+For the regulated workflow audit-trail evidence packet, see
+[`docs/audit-trail-evidence-packet.md`](docs/audit-trail-evidence-packet.md).
+
 Completed live scenario validation notes for WL-INC-002 through WL-INC-005 are
 tracked in `docs/live-scenario-validation-log.md` without committing raw proof
 artifacts.
